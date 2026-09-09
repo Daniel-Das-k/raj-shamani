@@ -1,0 +1,5 @@
+yt-dlp
+groq
+python-dotenv
+requests
+pyannote.audio>=4,<5

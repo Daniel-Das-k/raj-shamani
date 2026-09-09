@@ -1,0 +1,10 @@
+.venv/
+.env
+cache/
+__pycache__/
+source.*
+audio.wav
+outputs/
+review_video.*
+speaker_names.json
+*.pyc
