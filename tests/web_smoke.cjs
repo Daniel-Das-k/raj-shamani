@@ -139,6 +139,25 @@ test('selected video is included in a question request', async () => {
   assert.equal(requests[0].data.source_id, 'abcdefghijk');
 });
 
+test('Raj Shamani reader shows indexed videos without import or pending controls', async () => {
+  const video = {id: 'abcdefghijk', title: 'Raj Shamani conversation', url: citation.url, state: 'ready'};
+  const status = {backend: 'supermemory', read_only: true, library_title: 'Raj Shamani',
+    channels: [], sources: [video], counts: {ready: 1}, total: 1,
+    credentials: {indexing: true, answers: true}, worker_running: false};
+  const {$, requests} = await app([answer], status);
+  for (const id of ['channel-tools', 'add-source', 'process', 'video-filters', 'ingest-note']) {
+    assert.equal($('#' + id).hidden, true, id);
+  }
+  assert.equal($('#collection-status').textContent, '1 video indexed');
+  assert.equal($('#source-count').textContent, 'Raj Shamani');
+  assert.equal($('#source-list').children[0].children.length, 1);
+  assert.equal($('#ask-button').disabled, false);
+  assert.equal(requests.length, 0);
+  $('#question').value = 'Explain leadership';
+  await $('#question-form').listeners.submit({preventDefault() {}});
+  assert.equal(requests[0].url, '/api/ask');
+});
+
 test('indexed filter paginates only indexed videos and keeps total counts visible', async () => {
   const video = {id: 'abcdefghijk', title: 'Indexed video', url: citation.url, state: 'ready'};
   const status = {backend: 'supermemory', channels: [], sources: [video],

@@ -19,12 +19,27 @@ const fs = require('node:fs/promises');
     const status = await page.evaluate(async () => (await fetch('/api/status')).json());
     assert.equal(status.backend, 'supermemory');
     assert.ok(status.counts.ready > 0);
-    const filtered = page.waitForResponse(r => r.url().includes('/api/videos?offset=0&status=ready'));
-    await page.locator('#video-filter').selectOption('ready');
-    await filtered;
+    if (status.read_only) {
+      assert.equal(status.library_title, 'Raj Shamani');
+      assert.equal(status.total, status.counts.ready);
+      assert.equal(status.worker_running, false);
+      for (const selector of ['#channel-tools', '#add-source', '#process', '#video-filters', '#ingest-note']) {
+        assert.equal(await page.locator(selector).isVisible(), false, selector);
+      }
+      const code = await page.evaluate(async () => (await fetch('/api/channels/action', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({channel_id: 'UCzwCEE_PchiBULMnAJqhGVg', action: 'resume'}),
+      })).status);
+      assert.equal(code, 403);
+    } else {
+      const filtered = page.waitForResponse(r => r.url().includes('/api/videos?offset=0&status=ready'));
+      await page.locator('#video-filter').selectOption('ready');
+      await filtered;
+    }
     await page.waitForFunction(() => document.querySelector('#source-list').querySelectorAll('.source-item').length > 0);
     assert.equal(await page.locator('#source-list .source-item').count(), Math.min(50, status.counts.ready));
     assert.equal(await page.locator('#source-list .source-state:not(.ready)').count(), 0);
+    if (!status.read_only) {
     await page.locator('#channel-handle').fill('@rajshamani');
     await page.locator('#find-channel').click();
     await page.locator('#channel-preview').waitFor({state: 'visible', timeout: 90000});
@@ -32,6 +47,7 @@ const fs = require('node:fs/promises');
     assert.match(await page.locator('#channel-preview').innerText(), /Shorts are excluded/);
     assert.equal(await page.locator('#channel-preview button').innerText(), 'Import long-form videos');
     assert.equal((await page.evaluate(async () => (await fetch('/api/status')).json())).channels.length, status.channels.length);
+    }
     await fs.mkdir('data/ui-checks', {recursive: true});
     await page.screenshot({path: 'data/ui-checks/channel-desktop.png', fullPage: true});
     await page.setViewportSize({width: 390, height: 844});
@@ -111,7 +127,7 @@ const fs = require('node:fs/promises');
       console.log(JSON.stringify({answer_status: result.status || 'error', points: result.points?.length || 0}));
     }
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ready_videos: status.counts.ready, channel_preview: 'Raj Shamani', desktop: 'passed', mobile: 'passed', page_errors: errors}));
+    console.log(JSON.stringify({ready_videos: status.counts.ready, read_only: Boolean(status.read_only), desktop: 'passed', mobile: 'passed', page_errors: errors}));
   } finally {
     await browser.close();
   }

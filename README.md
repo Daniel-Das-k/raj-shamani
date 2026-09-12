@@ -14,11 +14,10 @@ insufficient-evidence response; the system does not fill gaps with outside knowl
 ## Run the knowledge base
 
 The browser now uses **YouTube captions + Supermemory retrieval + OpenAI answers**.
-Enter a channel handle such as `@rajshamani`, click **Find**, then **Import long-form videos**.
-The import discovers regular uploads from the channel's Videos tab, excluding Shorts,
-and saves timed captions before indexing them. It does not download the video files.
-Separate Shorts and Live tabs are not scanned. Individual Shorts links are rejected;
-Shorts supplied as ordinary watch links are skipped when their metadata is checked.
+The default browser is a fixed **Raj Shamani** library. It lists only his already
+indexed videos and lets readers ask across them or select one video. Channel handles,
+video URLs, import actions, pending videos, and background indexing are disabled.
+The existing 50-video collection is preserved; no re-indexing is required.
 
 On macOS/Linux with Python 3.12+:
 
@@ -31,9 +30,8 @@ python -m pip install -r requirements-channels.txt
 python -m knowledge serve
 ```
 
-Open http://127.0.0.1:8000. Pause/resume imports, retry issues, or check for new
-videos from the channel row. New uploads are checked every six hours while the
-server runs. Ask across the indexed library or select a particular video.
+Open http://127.0.0.1:8000 and ask a question. The sidebar shows the indexed video
+catalog, and answers include summaries, expandable original captions, and timestamp links.
 Answers and evidence checks use `OPENAI_CHAT_MODEL=gpt-4.1-mini` by default.
 The OpenAI API account needs its own available quota; Supermemory credits are separate. FFmpeg, Deepgram, and local embeddings are unnecessary
 for this caption-based browser.
@@ -42,10 +40,11 @@ The catalog and queue persist in `data/channels.sqlite3`. Original timed caption
 persist under `data/supermemory-trial/timed-captions/`; Supermemory stores searchable
 text with video IDs and revision metadata. This is retrieval-augmented generation
 (RAG), with no application-managed graph database. Back up the entire data directory.
-Existing caption-trial documents are adopted and checked for completion on startup.
+The reader does not adopt new trial documents or start an import worker. A fresh
+checkout needs the existing local data directory and access to the corresponding
+Supermemory container; indexed data and credentials are not committed to Git.
 
-Videos without usable captions, unavailable videos, and transcripts over the current
-1 MB text limit are shown as needing attention. There is no automatic paid audio
+Pending, failed, and unindexed videos are excluded from the reader catalog. There is no automatic paid audio
 transcription fallback. Only provider-completed documents become searchable.
 Caption timestamps are machine-generated segment boundaries, not verified audio
 alignment. Answers still need evaluation; citation validation cannot guarantee
@@ -60,7 +59,8 @@ This remains a local single-user app, without public hosting or authentication.
 
 The original CLI commands below use Deepgram and local hybrid retrieval. Their
 database is separate from the channel browser. Use `serve --backend local` to open
-that collection. Channel imports require the default Supermemory backend.
+that collection. The channel import implementation remains in `ChannelLibrary` for maintenance;
+the default server uses `RajShamaniLibrary` and rejects import API requests.
 
 Python 3.12+ and FFmpeg are required. From this directory on macOS/Linux:
 

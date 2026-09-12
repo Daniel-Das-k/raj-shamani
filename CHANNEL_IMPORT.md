@@ -1,6 +1,14 @@
 # Channel library
 
-The default `python -m knowledge serve` now opens the Supermemory caption library.
+The default `python -m knowledge serve` opens a fixed Raj Shamani reader library.
+Only ready videos linked to channel `UCzwCEE_PchiBULMnAJqhGVg` are returned by status,
+pagination, and retrieval. Channel/video input and import controls are hidden; direct
+calls to import and channel-management endpoints return HTTP 403. No worker starts,
+so restarting the reader cannot resume imports. Existing queued videos and captions
+are retained. Answers, reference summaries, playback, and saved responses remain available.
+
+The import workflow below documents the retained maintenance implementation in
+`ChannelLibrary`; it is no longer exposed by the default reader server.
 The previous Deepgram/local-embedding browser remains available with `--backend local`.
 
 ## User flow

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Knowledge Retriever · Video knowledge base</title>
+  <title>Raj Shamani · Video library</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
 </head>
@@ -14,8 +14,8 @@
   </header>
   <main class="workspace">
     <section class="conversation" aria-labelledby="ask-title">
-      <div class="section-title"><h1 id="ask-title">Ask your video library</h1><button id="reset" class="text-button" type="button" hidden>New question</button></div>
-      <p class="intro">Answers from your videos, with excerpts and links to the supporting moments.</p>
+      <div class="section-title"><h1 id="ask-title">Ask Raj Shamani’s video library</h1><button id="reset" class="text-button" type="button" hidden>New question</button></div>
+      <p class="intro">Explore the indexed conversations, with answers and references linked to the exact video moments.</p>
       <form id="question-form">
         <label for="video-scope">Search in</label>
         <select id="video-scope"><option value="">All indexed videos</option></select>
@@ -38,8 +38,8 @@
     <aside class="library" aria-labelledby="library-title">
       <div class="section-title"><h2 id="library-title">Library</h2><span id="source-count" class="muted"></span></div>
       <section id="library-videos" aria-labelledby="videos-title">
-        <div class="section-title"><h3 id="videos-title">Your videos</h3><span id="video-page-label" class="muted"></span></div>
-        <div id="video-filters">
+        <div class="section-title"><h3 id="videos-title">Indexed videos</h3><span id="video-page-label" class="muted"></span></div>
+        <div id="video-filters" hidden>
           <p id="video-summary" class="muted" role="status"></p>
           <label for="video-filter">Show videos</label>
           <select id="video-filter"><option value="">All videos</option><option value="ready">Indexed — ready to ask</option><option value="pending">Pending</option><option value="attention">Needs attention</option></select>
@@ -47,7 +47,7 @@
         <div id="source-list" class="source-list" aria-live="polite"></div>
         <div id="video-pagination" class="pagination" hidden><button id="previous-videos" class="text-button" type="button">← Previous</button><button id="next-videos" class="text-button" type="button">Next →</button></div>
       </section>
-      <section id="channel-tools" aria-labelledby="channels-title">
+      <section id="channel-tools" aria-labelledby="channels-title" hidden>
         <h3 id="channels-title">YouTube channels</h3>
         <form id="channel-form">
           <label for="channel-handle">Channel handle or URL</label>
@@ -58,9 +58,9 @@
         <div id="channel-list"></div>
         <p class="muted">Long-form videos only; Shorts are excluded. New uploads are checked every 6 hours while the app is running.</p>
       </section>
-      <button id="process" class="secondary full-width" type="button">Process videos</button>
-      <p id="ingest-note" role="status" class="muted"></p>
-      <details class="add-source"><summary>Add another video</summary><form id="link-form"><label for="podcast-url">YouTube link</label><input id="podcast-url" name="url" type="url" placeholder="https://www.youtube.com/watch?v=…" required><button id="add-link" class="secondary" type="submit">Add to library</button></form></details>
+      <button id="process" class="secondary full-width" type="button" hidden>Process videos</button>
+      <p id="ingest-note" role="status" class="muted" hidden></p>
+      <details id="add-source" class="add-source" hidden><summary>Add another video</summary><form id="link-form"><label for="podcast-url">YouTube link</label><input id="podcast-url" name="url" type="url" placeholder="https://www.youtube.com/watch?v=…" required><button id="add-link" class="secondary" type="submit">Add to library</button></form></details>
       <div id="setup" class="setup" hidden><h3>Setup needed</h3><p id="setup-message"></p><p>The library’s search and answer services need to be configured on the server.</p></div>
       <div class="source-note"><h3>Follow the evidence</h3><p>Original speech stays intact. Translations are labelled separately, and links open at the cited moment.</p><p>Transcripts and translations are machine generated and may need a listening check.</p></div>
     </aside>

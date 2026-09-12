@@ -172,7 +172,7 @@ def handler_for(demo: Demo):
                     offset = int(query.get("offset", ["0"])[0])
                     if not 0 <= offset <= 1_000_000:
                         raise ValueError("Invalid page offset.")
-                    self.send_data({"sources": demo.store.page(offset, status=query.get("status", [""])[0])})
+                    self.send_data({"sources": demo.page(offset, status=query.get("status", [""])[0])})
                 elif path == "/api/responses":
                     query = parse_qs(urlparse(self.path).query)
                     self.send_data(history.list(offset=int(query.get("offset", ["0"])[0])))
@@ -204,6 +204,11 @@ def handler_for(demo: Demo):
                     raise ValueError("Request must be a JSON object.")
                 path = urlparse(self.path).path
                 load_settings()
+                if getattr(demo, "read_only", False) and path in {
+                    "/api/ingest", "/api/channels/preview", "/api/channels", "/api/channels/action"
+                }:
+                    self.send_data({"error": "This library contains only indexed Raj Shamani videos. Imports are disabled."}, 403)
+                    return
                 if path == "/api/ingest":
                     self.send_data(demo.start_ingestion(payload.get("urls")), 202)
                 elif path == "/api/channels/preview":
@@ -290,8 +295,8 @@ def safe_error(exc):
 def serve(data_dir: Path, links_file: Path, port=8000, backend="supermemory"):
     load_settings()
     if backend == "supermemory":
-        from .channel_library import ChannelLibrary
-        demo = ChannelLibrary(data_dir)
+        from .raj_library import RajShamaniLibrary
+        demo = RajShamaniLibrary(data_dir)
     else:
         demo = Demo(data_dir, links_file)
     server = ThreadingHTTPServer(("127.0.0.1", port), handler_for(demo))

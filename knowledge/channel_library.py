@@ -237,7 +237,7 @@ class ChannelLibrary:
         question = nonempty_text(question, "question", 6000)
         if source_id is not None and not isinstance(source_id, str):
             raise ValueError("Invalid video selection.")
-        records = self.store.rows("SELECT * FROM videos WHERE state='ready'")
+        records = self.ready_videos()
         available = {r["id"]: r for r in records}
         if source_id and source_id not in available:
             raise ValueError("Selected video is not ready to search.")
@@ -262,6 +262,12 @@ class ChannelLibrary:
                     citations.append(cite)
                     seen.add(key)
         return {"excerpts": citations}
+
+    def ready_videos(self):
+        return self.store.rows("SELECT * FROM videos WHERE state='ready'")
+
+    def page(self, offset=0, *, status=""):
+        return self.store.page(offset, status=status)
 
     def answer(self, question, source_id=None):
         if not self.answer_lock.acquire(blocking=False):

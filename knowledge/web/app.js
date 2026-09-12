@@ -34,12 +34,15 @@ function requestMessage(message, error = false) {
 
 function updateControls() {
   const channels = currentStatus?.backend === 'supermemory';
+  const readOnly = !currentStatus || currentStatus.read_only;
   const ready = channels ? currentStatus.counts.ready > 0 : currentStatus?.sources.some((source) => source.status === 'ready');
   $('#ask-button').disabled = requesting || !ready || !currentStatus?.credentials.answers;
   $('#video-scope').disabled = requesting;
-  $('#channel-tools').hidden = Boolean(currentStatus && !channels);
-  $('#video-filters').hidden = !channels;
-  $('#process').hidden = channels;
+  $('#channel-tools').hidden = readOnly || !channels;
+  $('#video-filters').hidden = readOnly || !channels;
+  $('#process').hidden = readOnly || channels;
+  $('#add-source').hidden = Boolean(readOnly);
+  $('#ingest-note').hidden = Boolean(readOnly);
   $('#find-channel').disabled = findingChannel;
   $('#find-channel').textContent = findingChannel ? 'Finding…' : 'Find';
   $('#process').disabled = Boolean(currentStatus?.job?.running) || !currentStatus?.credentials.transcription || !currentStatus?.links_count;
@@ -323,8 +326,8 @@ function videoTotal(status) {
 
 function showChannelLibrary(status) {
   const counts = status.counts;
-  $('#collection-status').textContent = `${counts.ready || 0} of ${status.total} videos indexed`;
-  $('#source-count').textContent = `${status.channels.length} channels`;
+  $('#collection-status').textContent = status.read_only ? `${counts.ready || 0} video${counts.ready === 1 ? '' : 's'} indexed` : `${counts.ready || 0} of ${status.total} videos indexed`;
+  $('#source-count').textContent = status.read_only ? status.library_title : `${status.channels.length} channels`;
   $('#setup').hidden = status.credentials.indexing && status.credentials.answers;
   $('#setup-message').textContent = [!status.credentials.indexing && 'Video indexing is not configured.', !status.credentials.answers && 'Answer generation is not configured.'].filter(Boolean).join(' ');
   const channels = document.createDocumentFragment();
@@ -367,7 +370,7 @@ function showChannelLibrary(status) {
     detail.append(link, element('p', `source-state ${source.state}`, source.error || labels[source.state] || source.state));
     row.append(image, detail); list.append(row);
   }
-  if (!sources.length) list.append(element('p', 'muted', status.total ? 'No videos match this status yet.' : 'Add a channel or video to start your library.'));
+  if (!sources.length) list.append(element('p', 'muted', status.read_only ? 'No indexed Raj Shamani videos are available yet.' : status.total ? 'No videos match this status yet.' : 'Add a channel or video to start your library.'));
   $('#source-list').replaceChildren(list);
   $('#video-page-label').textContent = total ? `${videoOffset + 1}–${videoOffset + sources.length} of ${total}` : '0 videos';
   $('#video-pagination').hidden = total <= 50;
@@ -381,6 +384,10 @@ function showChannelLibrary(status) {
   // Do not change a user's selection while their question is being prepared.
   if (!requesting) { scope.replaceChildren(...options); scope.value = catalog.some(s => s.id === previous) ? previous : ''; }
   $('#ingest-note').textContent = !status.worker_running ? 'The import worker is stopped. Restart the app to resume.' : 'Imports resume after a restart. Already indexed videos are kept.';
+  if (status.read_only) {
+    $('#empty-state h2').textContent = counts.ready ? 'Ask about the indexed conversations' : 'The video library is not ready yet';
+    $('#empty-state p').textContent = counts.ready ? 'Explore ideas from Raj Shamani’s conversations. Answers include brief reference summaries and links to the supporting moments.' : 'Questions will be available once the library has indexed videos.';
+  }
 }
 
 $('#channel-form').addEventListener('submit', async (event) => {
