@@ -1,0 +1,72 @@
+[
+  {
+    "id": "columns_topic",
+    "query": "What is the two-column exercise for dealing with worries?",
+    "video_id": "Y566_T-YlNQ",
+    "reference_answer": "Write concerns in the left column and things you can actually control in the right; notice which column a worry belongs to. He credits Andy Stump in the captions.",
+    "gold_groups": [
+      {
+        "video_id": "Y566_T-YlNQ",
+        "start_segment": "C000747",
+        "end_segment": "C000761"
+      }
+    ],
+    "parent": "columns_en"
+  },
+  {
+    "id": "learning_topic",
+    "query": "What should I do after listening to a podcast to remember what I learned?",
+    "video_id": "Y566_T-YlNQ",
+    "reference_answer": "Self-test: take a walk or a few moments to recall what you learned, then look up what you cannot remember.",
+    "gold_groups": [
+      {
+        "video_id": "Y566_T-YlNQ",
+        "start_segment": "C002850",
+        "end_segment": "C002865"
+      }
+    ],
+    "parent": "learning_en"
+  },
+  {
+    "id": "raci_topic",
+    "query": "What does RACI stand for and how is it used in a project?",
+    "video_id": "XwawXRaNfzM",
+    "reference_answer": "Responsible, accountable, consulted and informed: clarify who occupies these roles in a project. The captions misspell the acronym in several places.",
+    "gold_groups": [
+      {
+        "video_id": "XwawXRaNfzM",
+        "start_segment": "C000932",
+        "end_segment": "C000951"
+      }
+    ],
+    "parent": "raci_en"
+  },
+  {
+    "id": "compare_huberman",
+    "query": "How can someone switch off from worries?",
+    "video_id": "Y566_T-YlNQ",
+    "reference_answer": "Huberman distinguishes concerns from controllable actions; Yousef emphasizes psychological detachment during breaks. Compare separately with evidence from both episodes.",
+    "gold_groups": [
+      {
+        "video_id": "Y566_T-YlNQ",
+        "start_segment": "C000747",
+        "end_segment": "C000761"
+      }
+    ],
+    "parent": "cross_video"
+  },
+  {
+    "id": "compare_sahar",
+    "query": "What makes a break truly restorative?",
+    "video_id": "4Vz6L8B73i4",
+    "reference_answer": "Huberman distinguishes concerns from controllable actions; Yousef emphasizes psychological detachment during breaks. Compare separately with evidence from both episodes.",
+    "gold_groups": [
+      {
+        "video_id": "4Vz6L8B73i4",
+        "start_segment": "C004142",
+        "end_segment": "C004159"
+      }
+    ],
+    "parent": "cross_video"
+  }
+]

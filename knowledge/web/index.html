@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Knowledge Retriever · Video knowledge base</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Knowledge Retriever home"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 3h12a2 2 0 0 1 2 2v16H7a3 3 0 0 1-3-3V4a1 1 0 0 1 1-1Z"/><path d="M4 17h15M8 7h7M8 11h5"/></svg>Knowledge Retriever</a>
+    <span id="collection-status" class="muted">Loading library…</span>
+  </header>
+  <main class="workspace">
+    <section class="conversation" aria-labelledby="ask-title">
+      <div class="section-title"><h1 id="ask-title">Ask your video library</h1><button id="reset" class="text-button" type="button" hidden>New question</button></div>
+      <p class="intro">Answers from your videos, with excerpts and links to the supporting moments.</p>
+      <form id="question-form">
+        <label for="video-scope">Search in</label>
+        <select id="video-scope"><option value="">All indexed videos</option></select>
+        <label for="question">What would you like to know?</label>
+        <textarea id="question" name="question" rows="4" maxlength="6000" required placeholder="What do these videos say about understanding what customers need? Show me the relevant moments."></textarea>
+        <div class="form-footer"><span>Ask in English, Hindi, or a mix of both.</span><button id="ask-button" class="primary" type="submit">Ask library <span aria-hidden="true">↗</span></button></div>
+      </form>
+      <div class="examples" id="examples"><span>Try a question</span><button type="button" data-question="What do these videos say about focus and distractions?">Explain a topic</button><button type="button" data-question="Compare what the videos say about understanding customer needs. Include the supporting moments.">Compare ideas</button><button type="button" data-question="इन वीडियो में काम के तनाव के बारे में कहाँ बात हुई है? समय और वीडियो लिंक दें।">सही पल खोजें</button></div>
+      <p id="request-status" role="status" aria-live="polite" hidden></p>
+      <div id="answer" aria-live="polite"></div>
+      <section id="empty-state" class="empty-state"><svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6 5h20v17H15l-6 5v-5H6z"/><path d="M11 11h10M11 16h7"/></svg><h2>Ask about your videos</h2><p>Find an explanation, compare ideas, or locate a specific moment. Each answer includes supporting excerpts and timestamped video links.</p></section>
+      <details id="response-history" class="response-history">
+        <summary>Saved responses <span id="history-count"></span></summary>
+        <p class="muted">New questions and responses are recorded locally, including citations and errors.</p>
+        <p id="history-message" class="muted" role="status"></p>
+        <div id="history-list"></div>
+        <div id="history-pagination" class="pagination" hidden><button id="history-newer" type="button" class="text-button">← Newer</button><button id="history-older" type="button" class="text-button">Older →</button></div>
+      </details>
+    </section>
+    <aside class="library" aria-labelledby="library-title">
+      <div class="section-title"><h2 id="library-title">Library</h2><span id="source-count" class="muted"></span></div>
+      <section id="library-videos" aria-labelledby="videos-title">
+        <div class="section-title"><h3 id="videos-title">Your videos</h3><span id="video-page-label" class="muted"></span></div>
+        <div id="video-filters">
+          <p id="video-summary" class="muted" role="status"></p>
+          <label for="video-filter">Show videos</label>
+          <select id="video-filter"><option value="">All videos</option><option value="ready">Indexed — ready to ask</option><option value="pending">Pending</option><option value="attention">Needs attention</option></select>
+        </div>
+        <div id="source-list" class="source-list" aria-live="polite"></div>
+        <div id="video-pagination" class="pagination" hidden><button id="previous-videos" class="text-button" type="button">← Previous</button><button id="next-videos" class="text-button" type="button">Next →</button></div>
+      </section>
+      <section id="channel-tools" aria-labelledby="channels-title">
+        <h3 id="channels-title">YouTube channels</h3>
+        <form id="channel-form">
+          <label for="channel-handle">Channel handle or URL</label>
+          <div class="channel-input"><input id="channel-handle" placeholder="@rajshamani" maxlength="250" required autocomplete="off"><button id="find-channel" class="secondary" type="submit">Find</button></div>
+        </form>
+        <p id="channel-message" class="muted" role="status" aria-live="polite"></p>
+        <div id="channel-preview" hidden></div>
+        <div id="channel-list"></div>
+        <p class="muted">Long-form videos only; Shorts are excluded. New uploads are checked every 6 hours while the app is running.</p>
+      </section>
+      <button id="process" class="secondary full-width" type="button">Process videos</button>
+      <p id="ingest-note" role="status" class="muted"></p>
+      <details class="add-source"><summary>Add another video</summary><form id="link-form"><label for="podcast-url">YouTube link</label><input id="podcast-url" name="url" type="url" placeholder="https://www.youtube.com/watch?v=…" required><button id="add-link" class="secondary" type="submit">Add to library</button></form></details>
+      <div id="setup" class="setup" hidden><h3>Setup needed</h3><p id="setup-message"></p><p>The library’s search and answer services need to be configured on the server.</p></div>
+      <div class="source-note"><h3>Follow the evidence</h3><p>Original speech stays intact. Translations are labelled separately, and links open at the cited moment.</p><p>Transcripts and translations are machine generated and may need a listening check.</p></div>
+    </aside>
+  </main>
+  <dialog id="player-dialog"><div class="player-toolbar"><h2 id="player-title">Podcast excerpt</h2><button id="close-player" class="text-button" type="button" aria-label="Close player">Close ×</button></div><div id="player-container"></div><a id="external-player" target="_blank" rel="noopener noreferrer">Open this moment on YouTube ↗</a></dialog>
+</body>
+</html>

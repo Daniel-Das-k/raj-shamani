@@ -8,3 +8,4 @@ outputs/
 review_video.*
 speaker_names.json
 *.pyc
+data/

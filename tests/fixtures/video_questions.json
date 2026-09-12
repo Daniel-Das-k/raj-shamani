@@ -1,0 +1,202 @@
+[
+  {
+    "id": "columns_en",
+    "query": "What is the two-column exercise Andrew Huberman describes for dealing with worries?",
+    "video_id": "Y566_T-YlNQ",
+    "reference_answer": "Write concerns in the left column and things you can actually control in the right; notice which column a worry belongs to. He credits Andy Stump in the captions.",
+    "gold_groups": [
+      {
+        "video_id": "Y566_T-YlNQ",
+        "start_segment": "C000747",
+        "end_segment": "C000761"
+      }
+    ]
+  },
+  {
+    "id": "learning_en",
+    "query": "According to Huberman, what should I do after listening to a podcast to remember what I learned?",
+    "video_id": "Y566_T-YlNQ",
+    "reference_answer": "Self-test: take a walk or a few moments to recall what you learned, then look up what you cannot remember.",
+    "gold_groups": [
+      {
+        "video_id": "Y566_T-YlNQ",
+        "start_segment": "C002850",
+        "end_segment": "C002865"
+      }
+    ]
+  },
+  {
+    "id": "phone_en",
+    "query": "How does Huberman physically stop himself using social media during a workout?",
+    "video_id": "Y566_T-YlNQ",
+    "reference_answer": "He keeps social media on a separate older phone and locks it in a timed lockbox, describing two hours during a workout.",
+    "gold_groups": [
+      {
+        "video_id": "Y566_T-YlNQ",
+        "start_segment": "C004138",
+        "end_segment": "C004150"
+      }
+    ]
+  },
+  {
+    "id": "if_then_en",
+    "query": "What are implementation intentions, and what bedtime example does Sahar Yousef give?",
+    "video_id": "4Vz6L8B73i4",
+    "reference_answer": "Detailed situation-action or if-then plans: for example, an 11 p.m. alarm triggers a planned wind-down routine.",
+    "gold_groups": [
+      {
+        "video_id": "4Vz6L8B73i4",
+        "start_segment": "C000750",
+        "end_segment": "C000769"
+      }
+    ]
+  },
+  {
+    "id": "five_am_en",
+    "query": "Does Sahar Yousef say everyone needs to wake up at 5 a.m. to perform well?",
+    "video_id": "4Vz6L8B73i4",
+    "reference_answer": "No. She says it suits some people, not everyone, and prioritizes enough high-quality sleep over a universal wake-up time.",
+    "gold_groups": [
+      {
+        "video_id": "4Vz6L8B73i4",
+        "start_segment": "C003453",
+        "end_segment": "C003465"
+      }
+    ]
+  },
+  {
+    "id": "three_m_en",
+    "query": "What are Sahar Yousef's three kinds of breaks, their frequency and duration, and what makes them effective?",
+    "video_id": "4Vz6L8B73i4",
+    "reference_answer": "Micro, meso and macro breaks: daily minutes, weekly 2–4 hours, monthly half to a full day. She later gives at least 10 minutes daily, two hours weekly and half a day monthly as a practical version. She emphasizes complete psychological detachment.",
+    "gold_groups": [
+      {
+        "video_id": "4Vz6L8B73i4",
+        "start_segment": "C004129",
+        "end_segment": "C004148"
+      },
+      {
+        "video_id": "4Vz6L8B73i4",
+        "start_segment": "C004296",
+        "end_segment": "C004315"
+      }
+    ]
+  },
+  {
+    "id": "raci_en",
+    "query": "In Sauvik Banerjjee's video, what does RACI stand for and how is it used in a project?",
+    "video_id": "XwawXRaNfzM",
+    "reference_answer": "Responsible, accountable, consulted and informed: clarify who occupies these roles in a project. The captions misspell the acronym in several places.",
+    "gold_groups": [
+      {
+        "video_id": "XwawXRaNfzM",
+        "start_segment": "C000932",
+        "end_segment": "C000951"
+      }
+    ]
+  },
+  {
+    "id": "say_do_en",
+    "query": "What is the say-do ratio in the CTO video, and why does it need a date and time?",
+    "video_id": "XwawXRaNfzM",
+    "reference_answer": "Compare what a person or team says and commits to with what they do and deliver; attach dates and times so delivery can be assessed against the commitment.",
+    "gold_groups": [
+      {
+        "video_id": "XwawXRaNfzM",
+        "start_segment": "C000964",
+        "end_segment": "C000966"
+      },
+      {
+        "video_id": "XwawXRaNfzM",
+        "start_segment": "C001000",
+        "end_segment": "C001006"
+      }
+    ]
+  },
+  {
+    "id": "disagree_en",
+    "query": "How does Sauvik Banerjjee suggest disagreeing with a powerful boss respectfully?",
+    "video_id": "XwawXRaNfzM",
+    "reference_answer": "Understand the leader first; use a respectful, low voice and ask for a few minutes to explain a different viewpoint instead of bluntly dismissing theirs.",
+    "gold_groups": [
+      {
+        "video_id": "XwawXRaNfzM",
+        "start_segment": "C001703",
+        "end_segment": "C001723"
+      }
+    ]
+  },
+  {
+    "id": "five_am_hi",
+    "query": "सहर यूसुफ के अनुसार क्या अच्छी परफॉर्मेंस के लिए हर किसी को सुबह पाँच बजे उठना ज़रूरी है?",
+    "video_id": "4Vz6L8B73i4",
+    "reference_answer": "Same reference as five_am_en; preserve the 'not everyone' qualification.",
+    "gold_groups": [
+      {
+        "video_id": "4Vz6L8B73i4",
+        "start_segment": "C003453",
+        "end_segment": "C003465"
+      }
+    ]
+  },
+  {
+    "id": "columns_hinglish",
+    "query": "Huberman ka left column right column wala exercise kya hai aur worries ke liye kaise use karein?",
+    "video_id": "Y566_T-YlNQ",
+    "reference_answer": "Same reference as columns_en; concerns versus what you can control.",
+    "gold_groups": [
+      {
+        "video_id": "Y566_T-YlNQ",
+        "start_segment": "C000747",
+        "end_segment": "C000761"
+      }
+    ]
+  },
+  {
+    "id": "columns_unfiltered",
+    "query": "What is the two-column exercise Andrew Huberman describes for dealing with worries?",
+    "video_id": null,
+    "reference_answer": "Same reference as columns_en. Any attribution to Huberman must use his episode.",
+    "gold_groups": [
+      {
+        "video_id": "Y566_T-YlNQ",
+        "start_segment": "C000747",
+        "end_segment": "C000761"
+      }
+    ]
+  },
+  {
+    "id": "cross_video",
+    "query": "Compare Huberman's way of switching off from worries with Sahar Yousef's requirement for a truly restorative break.",
+    "video_id": null,
+    "reference_answer": "Huberman distinguishes concerns from controllable actions; Yousef emphasizes psychological detachment during breaks. Compare separately with evidence from both episodes.",
+    "gold_groups": [
+      {
+        "video_id": "Y566_T-YlNQ",
+        "start_segment": "C000747",
+        "end_segment": "C000761"
+      },
+      {
+        "video_id": "4Vz6L8B73i4",
+        "start_segment": "C004142",
+        "end_segment": "C004159"
+      }
+    ]
+  },
+  {
+    "id": "fabricated_password",
+    "query": "What exact seven-digit password does Andrew Huberman give for his private sleep app?",
+    "video_id": "Y566_T-YlNQ",
+    "reference_answer": "Withhold a password answer: no supporting password evidence was found in the reviewed transcript.",
+    "gold_groups": [],
+    "expected_abstention": true
+  },
+  {
+    "id": "unrelated_database",
+    "query": "What PostgreSQL commands configure streaming replication between two database servers?",
+    "video_id": null,
+    "reference_answer": "Withhold database instructions when retrieved video evidence does not support them.",
+    "gold_groups": [],
+    "expected_abstention": true
+  }
+]

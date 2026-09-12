@@ -1,0 +1,3 @@
+# Lightweight SuperRAG trial; no local embedding model or audio dependencies.
+python-dotenv
+requests

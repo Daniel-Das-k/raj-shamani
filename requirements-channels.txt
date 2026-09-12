@@ -1,0 +1,4 @@
+# Channel browser: captions, Supermemory retrieval, and Groq answers.
+-r requirements-supermemory.txt
+yt-dlp
+groq

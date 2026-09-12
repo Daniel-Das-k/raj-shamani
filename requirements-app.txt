@@ -1,0 +1,6 @@
+# Podcast knowledge assistant; the original pyannote pilot remains optional.
+yt-dlp
+groq
+python-dotenv
+requests
+sentence-transformers>=3,<6
