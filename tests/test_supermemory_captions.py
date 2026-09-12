@@ -57,6 +57,22 @@ class CaptionEvidenceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 caption_source(self.info, raw, "en-orig")
 
+    def test_incomplete_duplicate_uses_identical_timed_copy(self):
+        raw = copy.deepcopy(self.raw)
+        duplicate = copy.deepcopy(raw['events'][0])
+        del duplicate['dDurationMs']
+        raw['events'].insert(0, duplicate)
+        self.assertEqual(caption_source(self.info, raw, 'en-orig'), self.source)
+
+    def test_missing_duration_cannot_borrow_from_different_text_time_or_window(self):
+        for change in ({'segs': [{'utf8': 'Different words.'}]}, {'tStartMs': 12000}, {'wWinId': 2}):
+            raw = copy.deepcopy(self.raw)
+            duplicate = {**raw['events'][0], **change}
+            del duplicate['dDurationMs']
+            raw['events'].insert(0, duplicate)
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'duration is missing'):
+                caption_source(self.info, raw, 'en-orig')
+
     def test_upload_keeps_local_originals_and_skips_unchanged_transcripts(self):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)

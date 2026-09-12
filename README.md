@@ -13,7 +13,7 @@ insufficient-evidence response; the system does not fill gaps with outside knowl
 
 ## Run the knowledge base
 
-The browser now uses **YouTube captions + Supermemory retrieval + Groq answers**.
+The browser now uses **YouTube captions + Supermemory retrieval + OpenAI answers**.
 Enter a channel handle such as `@rajshamani`, click **Find**, then **Import long-form videos**.
 The import discovers regular uploads from the channel's Videos tab, excluding Shorts,
 and saves timed captions before indexing them. It does not download the video files.
@@ -27,15 +27,15 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-channels.txt
 # First setup only: copy .env.example to .env, preserving any existing keys.
-# Set SUPERMEMORY_API_KEY, GROQ_API_KEY, and an available GROQ_CHAT_MODEL.
+# Set SUPERMEMORY_API_KEY and OPENAI_API_KEY (optional OPENAI_CHAT_MODEL).
 python -m knowledge serve
 ```
 
 Open http://127.0.0.1:8000. Pause/resume imports, retry issues, or check for new
 videos from the channel row. New uploads are checked every six hours while the
 server runs. Ask across the indexed library or select a particular video.
-The tested account uses `GROQ_CHAT_MODEL=openai/gpt-oss-120b`; its previous Llama
-setting was unavailable. FFmpeg, Deepgram, and local embeddings are unnecessary
+Answers and evidence checks use `OPENAI_CHAT_MODEL=gpt-4.1-mini` by default.
+The OpenAI API account needs its own available quota; Supermemory credits are separate. FFmpeg, Deepgram, and local embeddings are unnecessary
 for this caption-based browser.
 
 The catalog and queue persist in `data/channels.sqlite3`. Original timed captions
@@ -72,8 +72,8 @@ cp .env.example .env
 ```
 
 On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell and use
-`Copy-Item .env.example .env`. Set `DEEPGRAM_API_KEY` and `GROQ_API_KEY` in `.env`.
-Groq is used for understanding questions and generating answers; the new pipeline
+`Copy-Item .env.example .env`. Set `DEEPGRAM_API_KEY` and `OPENAI_API_KEY` in `.env`.
+OpenAI is used for understanding questions and generating answers; the new pipeline
 does not require Groq transcription or pyannote. `HF_TOKEN` is only needed for
 the separate original pyannote experiment below.
 
@@ -100,7 +100,7 @@ python -m knowledge ask "Where do the videos discuss distractions?" --json
 ```
 
 Ingestion downloads media, sends audio to Deepgram, and creates embeddings locally.
-Questions send the question, source catalog, and retrieved transcript passages to Groq. These
+Questions send the question, source catalog, and retrieved transcript passages to OpenAI. These
 provider calls use your accounts. The first nonempty ingestion/search loads the
 public embedding model from Hugging Face; subsequent runs reuse its local cache.
 `sources` and empty-collection queries need no API keys or model downloads.
@@ -162,7 +162,7 @@ In the live trial, direct extraction of all three YouTube URLs failed. Downloadi
 their original automatic captions and uploading the transcript text succeeded:
 all three caption documents reached `done`, and real questions returned passages.
 The default browser now uses this caption retrieval approach, with a persistent
-channel catalog and Groq answer generation. These commands remain useful for diagnostics.
+channel catalog and OpenAI answer generation. These commands remain useful for diagnostics.
 
 ```bash
 # Needs yt-dlp as well as requirements-supermemory.txt. Downloads captions only.
@@ -184,7 +184,7 @@ The `--video-id` option applies both a provider metadata filter and a local chec
 
 These are automatic **caption-segment** timestamps, not verified word-level audio
 alignment. This trial returns retrieved excerpts rather than generated answers.
-It does not need Deepgram, Groq, or a local embedding model. Groq is still needed
+It does not need Deepgram, Groq, or a local embedding model. OpenAI is needed
 for the app's answer-generation pipeline; Deepgram remains useful when captions
 are missing or when a separate transcription is required. This small trial establishes
 working retrieval, not a full quality comparison with the local retrieval backend.
@@ -204,13 +204,13 @@ API references: [SuperRAG](https://supermemory.ai/docs/concepts/super-rag),
    SQLite full-text search contributes keyword matches. Rankings are combined.
    Query planning expands the question into related terms and can select explicitly
    named videos. Comparison/overview searches spread candidates across videos.
-4. **Answer:** Groq assesses candidates and writes a direct reply in short paragraphs,
+4. **Answer:** OpenAI assesses candidates and writes a direct reply in short paragraphs,
    preserving qualifications and differing perspectives. Each reference has a brief
    summary, with the unchanged original transcript available to expand in the browser.
 5. **Cite:** the model selects stored passage IDs and word ranges. Python validates
    those ranges and constructs quotes, time ranges, and YouTube links from source
    data. Invented passage IDs and out-of-range citations are rejected.
-6. **Check support:** a separate Groq call checks every answer paragraph and reference
+6. **Check support:** a separate OpenAI call checks every answer paragraph and reference
    summary against its own cited original excerpts. Shared excerpts are sent once to
    reduce token usage. Missing, malformed, or negative checks withhold the answer.
 7. **Translate:** optional English translations are cached separately from the
@@ -274,7 +274,7 @@ node --test tests/web_smoke.cjs
 ```
 
 Provider integration references: [Deepgram diarization](https://developers.deepgram.com/docs/diarization/),
-[Groq JSON generation](https://console.groq.com/docs/structured-outputs),
+[OpenAI structured output](https://developers.openai.com/api/docs/guides/structured-outputs),
 [multilingual E5 model](https://huggingface.co/intfloat/multilingual-e5-small),
 and [yt-dlp embedding examples](https://github.com/yt-dlp/yt-dlp#embedding-examples).
 

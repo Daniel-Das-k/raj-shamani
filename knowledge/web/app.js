@@ -84,7 +84,7 @@ function showSources(status) {
   $('#setup').hidden = status.credentials.transcription && status.credentials.answers;
   const missing = [];
   if (!status.credentials.transcription) missing.push('DEEPGRAM_API_KEY for transcription');
-  if (!status.credentials.answers) missing.push('GROQ_API_KEY for answers and translations');
+  if (!status.credentials.answers) missing.push('OPENAI_API_KEY for answers and translations');
   $('#setup-message').textContent = `Missing: ${missing.join('; ')}.`;
   if (status.links_error) {
     $('#ingest-note').textContent = status.links_error;

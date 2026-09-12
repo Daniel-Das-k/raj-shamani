@@ -9,7 +9,7 @@ import time
 
 from .answers import nonempty_text, verify_answer
 from .ingest import read_json, write_json
-from .providers import GroqJSON
+from .providers import GroqJSON, OpenAIJSON
 from .supermemory import ROOT, TRIAL
 from .supermemory_captions import resolve_hit
 
@@ -148,7 +148,7 @@ def answer_captions(question, citations, sources, llm, audit=None, *, whole_pass
                 "message": "The answer failed evidence checks; inspect the original excerpts."}
 
 
-class TrialGroq(GroqJSON):
+class RetryJSON:
     def __init__(self, rate_limit_retries=0):
         self.rate_limit_retries = rate_limit_retries
 
@@ -169,24 +169,33 @@ class TrialGroq(GroqJSON):
                 time.sleep(seconds)
 
 
+class TrialGroq(RetryJSON, GroqJSON):
+    """Retained for explicitly invoked historical Groq experiments."""
+
+
+class TrialOpenAI(RetryJSON, OpenAIJSON):
+    pass
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("results", type=Path, help="Saved retrieval evaluation; reference answers are never sent to the model")
     parser.add_argument("--case-ids", nargs="+", help="Optional subset of case IDs")
     parser.add_argument("--model", help="Override the model for this trial only")
-    parser.add_argument("--list-models", action="store_true", help="Check available Groq model IDs without generating answers")
+    parser.add_argument("--list-models", action="store_true", help="Check available OpenAI model IDs without generating answers")
     parser.add_argument("--whole-passages", action="store_true", help="Experiment: cite complete selected passages rather than narrow generated spans")
     parser.add_argument("--rate-limit-retries", type=int, choices=range(4), default=0)
     args = parser.parse_args()
     from dotenv import load_dotenv
     load_dotenv(ROOT / ".env")
     if args.list_models:
-        from groq import Groq
-        with Groq(api_key=os.environ["GROQ_API_KEY"], max_retries=0, timeout=30) as client:
+        from openai import OpenAI
+        with OpenAI(api_key=os.environ["OPENAI_API_KEY"], base_url="https://api.openai.com/v1",
+                    max_retries=0, timeout=30) as client:
             print("Available model IDs:", sorted(m.id for m in client.models.list().data))
         return 0
     if args.model:
-        os.environ["GROQ_CHAT_MODEL"] = args.model
+        os.environ["OPENAI_CHAT_MODEL"] = args.model
     report = read_json(args.results)
     if args.case_ids and not set(args.case_ids).issubset({c["id"] for c in report["cases"]}):
         raise ValueError("Requested case ID is not present in the retrieval results.")
@@ -194,7 +203,7 @@ def main():
     manifest = read_json(directory / "manifest.json")
     sources = {v: read_json(directory / f"{v}-{r['revision'][:12]}.json")
                for v, r in manifest["sources"].items()}
-    llm = TrialGroq(args.rate_limit_retries)
+    llm = TrialOpenAI(args.rate_limit_retries)
     output = args.results.parent / ("answers-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + ".json")
     result = {"model": llm.model_name, "retrieval_results": str(args.results),
               "whole_passages": args.whole_passages, "cases": []}
@@ -216,7 +225,7 @@ def main():
                 details = body.get("error", body)
                 if isinstance(details, dict):
                     message = str(details.get("message", ""))
-                    for key in ("GROQ_API_KEY", "SUPERMEMORY_API_KEY", "DEEPGRAM_API_KEY"):
+                    for key in ("OPENAI_API_KEY", "GROQ_API_KEY", "SUPERMEMORY_API_KEY", "DEEPGRAM_API_KEY"):
                         if os.getenv(key):
                             message = message.replace(os.environ[key], "[redacted]")
                     row["provider_error"] = {"code": details.get("code"), "message": message[:600]}

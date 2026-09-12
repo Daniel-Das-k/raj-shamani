@@ -95,10 +95,21 @@ class ChannelStore:
                 OR EXISTS(SELECT 1 FROM channel_videos cv JOIN channels c ON c.id=cv.channel_id
                           WHERE cv.video_id=v.id AND c.paused=0))"""
 
-    def next_video(self):
+    def next_video(self, *, serial=False, video_ids=None):
+        if video_ids == []:
+            return None
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT v.* FROM videos v WHERE state IN ('queued','indexing') AND next_attempt<=? AND " + self.eligible() + " ORDER BY CASE state WHEN 'indexing' THEN 0 ELSE 1 END,updated_at LIMIT 1", (time.time(),)).fetchone()
+            states = "('queued','indexing')"
+            if serial and db.execute("SELECT 1 FROM videos v WHERE state IN ('indexing','processing') AND " + self.eligible() + " LIMIT 1").fetchone():
+                states = "('indexing')"
+            selection, ordering, args = '', '', [time.time()]
+            if video_ids is not None:
+                selection = ' AND v.id IN (' + ','.join('?' for _ in video_ids) + ')'
+                args.extend(video_ids)
+                ordering = 'CASE v.id ' + ' '.join(f'WHEN ? THEN {i}' for i in range(len(video_ids))) + ' END,'
+                args.extend(video_ids)
+            row = db.execute("SELECT v.* FROM videos v WHERE state IN " + states + " AND next_attempt<=? AND " + self.eligible() + selection + " ORDER BY CASE state WHEN 'indexing' THEN 0 ELSE 1 END," + ordering + "updated_at LIMIT 1", args).fetchone()
             if row:
                 db.execute("UPDATE videos SET state='processing' WHERE id=?", (row["id"],))
             return dict(row) if row else None

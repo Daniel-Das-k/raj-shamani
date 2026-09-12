@@ -1,4 +1,4 @@
-# Channel browser: captions, Supermemory retrieval, and Groq answers.
+# Channel browser: captions, Supermemory retrieval, and OpenAI answers.
 -r requirements-supermemory.txt
 yt-dlp
-groq
+openai>=1.66.0,<3

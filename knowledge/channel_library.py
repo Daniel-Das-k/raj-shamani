@@ -10,7 +10,8 @@ import time
 from .caption_answers import answer_captions
 from .channel_store import ChannelStore
 from .ingest import read_json, write_json
-from .providers import GroqJSON
+from .import_budget import BudgetStop, ImportBudget
+from .providers import OpenAIJSON
 from .supermemory import Supermemory
 from .supermemory_captions import CONTAINER, resolve_hit
 from .transcripts import youtube_source
@@ -23,9 +24,10 @@ class ChannelLibrary:
         self.directory = self.data_dir / "supermemory-trial" / "timed-captions"
         self.directory.mkdir(parents=True, exist_ok=True)
         self.store = ChannelStore(self.data_dir / "channels.sqlite3")
+        self.import_budget = ImportBudget(self.data_dir / 'import-budget.json')
         self.youtube = youtube or YouTube()
         self.client_factory = client_factory or (lambda: Supermemory(CONTAINER))
-        self.llm = llm or GroqJSON()
+        self.llm = llm or OpenAIJSON()
         self.stop = threading.Event()
         self.wake = threading.Event()
         self.thread = None
@@ -113,7 +115,7 @@ class ChannelLibrary:
     def status(self):
         result = self.store.status()
         result.update(backend="supermemory", credentials={"indexing": bool(os.getenv("SUPERMEMORY_API_KEY")),
-                      "answers": bool(os.getenv("GROQ_API_KEY"))},
+                      "answers": bool(os.getenv("OPENAI_API_KEY"))},
                       worker_running=bool(self.thread and self.thread.is_alive()),
                       answer_model=self.llm.model_name)
         return result
@@ -151,7 +153,15 @@ class ChannelLibrary:
             except Exception:
                 self.store.execute("UPDATE channels SET state='error',error=? WHERE id=?", ("Channel discovery could not finish. Discovered videos are saved; retry to continue.", channel["id"]))
             return True
-        video = self.store.next_video()
+        limited = self.import_budget.enabled
+        try:
+            ready = self.store.rows("SELECT count(*) n FROM videos WHERE state='ready'")[0]['n'] if limited else 0
+            selected = self.import_budget.video_ids(ready) if limited else None
+        except BudgetStop as exc:
+            self.store.execute('UPDATE channels SET paused=1,error=?', (str(exc),))
+            self.import_budget.stop(str(exc))
+            return False
+        video = self.store.next_video(serial=limited, video_ids=selected)
         if not video:
             return False
         client = None
@@ -161,6 +171,9 @@ class ChannelLibrary:
                 state = client.document(video["document_id"]).get("status")
                 if state == "done":
                     self.store.update_video(video["id"], state="ready", error=None, attempts=0)
+                    if limited:
+                        # Give asynchronous billing time to settle before another upload.
+                        self.store.execute("UPDATE videos SET next_attempt=MAX(next_attempt,?) WHERE state='queued'", (time.time() + 15,))
                 elif state == "failed":
                     self.store.update_video(video["id"], state="error", error="The indexing provider could not process this transcript. Retry to recheck its status.")
                 else:
@@ -178,6 +191,12 @@ class ChannelLibrary:
             content = f"Video: {source['title']}\nYouTube captions; not human verified.\n\n" + "\n".join(f"[{s['id']}] {s['text']}" for s in source["segments"])
             if len(content.encode()) > 1_000_000:
                 raise ValueError("Transcript exceeds the indexing text limit; split this video before importing.")
+            if limited:
+                self.import_budget.authorize(client, content)
+            # Recheck a user pause after downloading captions, before submitting them.
+            if not self.store.rows("SELECT id FROM videos v WHERE id=? AND " + self.store.eligible(), (video['id'],)):
+                self.store.update_video(video['id'], state='queued')
+                return False
             # Stable ID makes retries after a lost response refer to the same document.
             result = client.add(content, f"kr-captions-{source['id']}-{source['revision'][:12]}",
                                 {"video_id": source["id"], "video_url": source["url"], "revision": source["revision"],
@@ -190,9 +209,20 @@ class ChannelLibrary:
             self.store.update_video(video["id"], state="indexing", document_id=document_id,
                                     revision=source["revision"], segments=len(source["segments"]),
                                     attempts=0, next_attempt=time.time() + 15, error=None)
+        except BudgetStop as exc:
+            self.store.update_video(video['id'], state='queued', error=None)
+            self.store.execute("UPDATE channels SET paused=1,error=?", (str(exc),))
+            self.import_budget.stop(str(exc))
+            return False
         except ValueError as exc:
             self.store.update_video(video["id"], state="skipped", error=str(exc)[:400])
         except Exception:
+            if limited:
+                reason = 'Limited import paused after a provider error. Check credits and the failed video before retrying.'
+                self.store.update_video(video['id'], state='error', error=reason)
+                self.store.execute('UPDATE channels SET paused=1,error=?', (reason,))
+                self.import_budget.stop(reason)
+                return False
             attempts = video["attempts"] + 1
             self.store.update_video(video["id"], state="error" if attempts >= 3 else ("indexing" if video["document_id"] else "queued"),
                                     attempts=attempts, next_attempt=time.time() + min(300, 30 * 2 ** attempts),
@@ -252,7 +282,7 @@ class ChannelLibrary:
                     directory.mkdir(parents=True, exist_ok=True)
                     diagnostic = json.dumps({"question": question, "model": self.llm.model_name,
                                              "audit": audit, "citations": citations}, ensure_ascii=False)
-                    for key in ("GROQ_API_KEY", "SUPERMEMORY_API_KEY", "DEEPGRAM_API_KEY", "HF_TOKEN"):
+                    for key in ("OPENAI_API_KEY", "GROQ_API_KEY", "SUPERMEMORY_API_KEY", "DEEPGRAM_API_KEY", "HF_TOKEN"):
                         if os.getenv(key):
                             diagnostic = diagnostic.replace(json.dumps(os.environ[key], ensure_ascii=False)[1:-1], "[redacted]")
                     write_json(directory / f"{time.time_ns()}.json", json.loads(diagnostic))

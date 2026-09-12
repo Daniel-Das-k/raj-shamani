@@ -54,6 +54,32 @@ class GroqJSON:
         return result
 
 
+class OpenAIJSON:
+    @property
+    def model_name(self):
+        return os.getenv('OPENAI_CHAT_MODEL', 'gpt-4.1-mini')
+
+    def complete(self, system: str, data: dict) -> dict:
+        from openai import OpenAI
+        with OpenAI(api_key=require_key('OPENAI_API_KEY'), base_url='https://api.openai.com/v1',
+                    max_retries=0, timeout=120) as client:
+            response = client.responses.create(
+                model=self.model_name, temperature=0, max_output_tokens=4000,
+                store=False, text={'format': {'type': 'json_object'}},
+                instructions=system + '\nReturn a valid JSON object only.',
+                input='Input JSON:\n' + json.dumps(data, ensure_ascii=False),
+            )
+        if response.status != 'completed':
+            raise RuntimeError('The answer was incomplete. Please retry with a narrower question.')
+        if any(getattr(part, 'type', None) == 'refusal' for item in response.output
+               for part in getattr(item, 'content', [])):
+            raise ValueError('The answer provider declined this request.')
+        result = json.loads(response.output_text)
+        if not isinstance(result, dict):
+            raise ValueError('Expected a JSON object from the language model.')
+        return result
+
+
 def transcribe(audio_path: Path, params: dict) -> dict:
     import requests
     with audio_path.open("rb") as audio:

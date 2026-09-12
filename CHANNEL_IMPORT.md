@@ -30,7 +30,7 @@ every six hours while the process is running. There is no background OS schedule
   with stable custom IDs and video/revision metadata. Existing trial videos are adopted.
 - Retrieval uses Supermemory document search. Python rejects unknown videos, stale
   revisions, altered text, and invalid segment IDs before building citations.
-- Groq generates an answer from retrieved evidence; a second model call checks support.
+- OpenAI (`gpt-4.1-mini` by default) generates an answer from retrieved evidence; a second model call checks support.
   The browser cites complete retrieved passages to retain nearby qualifications.
 
 This is RAG. The application does not create or query a graph database. It retains
@@ -38,7 +38,53 @@ caption text and references; it does not archive YouTube media. Back up the enti
 data directory and retain access to the Supermemory account. A custom local data
 directory does not create a separate remote tenant/container.
 
+Answers, reference summaries, and support checks use `OPENAI_API_KEY` from `.env`.
+`OPENAI_CHAT_MODEL` defaults to `gpt-4.1-mini`. The client explicitly connects to
+`https://api.openai.com/v1`, so an inherited endpoint override cannot redirect the key
+to another service. Responses use JSON mode with `store=false`. OpenAI API quota is
+separate from Supermemory indexing credits; billing quota failures are distinguished
+from temporary rate limits. Historical Groq evaluation scripts remain optional.
+The OpenAI migration passed 98 Python tests and eight frontend checks. A live equity
+ownership question passed generation and evidence verification in 9.319 seconds,
+with three summarized references (record `95c9b54d70af40bfbdf5054cbd89f935`). An earlier
+CXO draft exceeded the three-citations-per-paragraph limit and was withheld. This
+connection check is not a broader answer-quality evaluation.
+
 ## Limits
+
+An optional local `data/import-budget.json` enables a limited free-credit import. It
+records a minimum USD balance, billing reset date, and maximum number of new document
+submissions. Before every upload, the worker reads Supermemory's live billing and
+auto-top-up endpoints, checks that the account is still Free with no payment method
+or auto top-up, and reserves the UTF-8 payload byte count at $1/million plus $0.01 as
+a conservative per-document allowance. Imports run one document at a time and wait
+15 seconds after completion before the next upload to allow billing to settle.
+Insufficient headroom, changed billing settings/period, an unreadable budget/balance,
+or a provider error pauses channels. Stopping is persisted; Resume does not clear the
+budget stop. Review credits before explicitly reconfiguring it. This is a local forecast
+guard, not a provider-enforced dollar cap: asynchronous billing, other account usage,
+and pricing changes can affect actual charges. It never purchases credits or changes
+payment settings. See [billing API documentation](https://supermemory.ai/docs/overview/billing).
+
+The 12 September limited run began at $3.861969 with a $0.861969 reserve (a $3 target)
+and a secondary limit of 100 new submissions. Shorts remain excluded. The credit guard
+and queue serialization are covered by the offline tests.
+
+The limited batch can also contain an ordered `video_ids` snapshot and a
+`target_ready_videos` count. Snapshot ordering takes precedence over retry/update times;
+uploads outside the snapshot are excluded. The worker pauses once the total ready count
+reaches the target. For the requested 100-video batch, the current indexed set was checked
+against a fresh read of YouTube's latest 100 Videos-tab entries; a new upload and two
+deferred videos were added back to the selection. This is a snapshot at the time of the
+check, not a continuously changing definition of “latest.” Unavailable captions or the
+credit reserve can prevent reaching the target; older uploads are not silently substituted.
+The user subsequently reduced this run to the first 50 entries of that same snapshot,
+with a target of 50 ready videos and the credit reserve unchanged.
+
+Some YouTube JSON3 captions contain a durationless duplicate of an explicitly timed
+entry. The parser ignores the incomplete copy only when text, start time, and caption
+window match a timed copy exactly. Missing duration without such a match is rejected;
+no timestamp duration is guessed. This fixes the observed FO543 caption parsing failure.
 
 Only public, accessible uploads exposed in the Videos tab can be discovered. The
 separate Shorts and Live tabs are not scanned. Short classification uses YouTube's

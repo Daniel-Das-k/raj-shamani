@@ -132,6 +132,16 @@ class ChannelTests(unittest.TestCase):
         self.library.action(CHANNEL, "resume")
         self.assertTrue(self.library.step())
 
+    def test_budget_failure_pauses_channel_before_remote_upload(self):
+        self.add_channel()
+        self.library.step()
+        (self.root / 'import-budget.json').write_text(json.dumps({'minimum_balance_usd': '0.86', 'max_new_documents': 10}))
+        self.client.request.side_effect = RuntimeError('Billing unavailable')
+        self.assertFalse(self.library.step())
+        self.client.add.assert_not_called()
+        self.assertEqual(self.library.status()['channels'][0]['paused'], 1)
+        self.assertTrue(json.loads((self.root / 'import-budget.json').read_text())['stopped'])
+
     def test_recovery_does_not_reupload_a_known_remote_document(self):
         self.library.store.add_video(self.video)
         self.library.store.update_video(VIDEO, state="processing", document_id="existing")

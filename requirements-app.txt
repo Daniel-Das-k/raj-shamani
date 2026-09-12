@@ -1,6 +1,7 @@
 # Podcast knowledge assistant; the original pyannote pilot remains optional.
 yt-dlp
-groq
+openai>=1.66.0,<3
+groq # Optional historical evaluation scripts.
 python-dotenv
 requests
 sentence-transformers>=3,<6

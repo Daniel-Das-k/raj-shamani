@@ -18,10 +18,23 @@ CONTAINER = "knowledge-retriever-caption-trial"
 def caption_source(info, raw, language):
     source = youtube_source("https://youtu.be/" + info["id"])
     segments = []
-    for event in raw.get("events", []):
-        text = "".join(part.get("utf8", "") for part in event.get("segs", [])).strip()
+    events = raw.get("events", [])
+    def wording(event):
+        return "".join(part.get("utf8", "") for part in event.get("segs", [])).strip()
+    # Some JSON3 tracks include an incomplete duplicate followed by the same
+    # caption with explicit timing. Use the timed copy, never invent its duration.
+    timed = {(e.get('tStartMs'), e.get('wWinId'), wording(e)) for e in events
+             if e.get('tStartMs') is not None and e.get('dDurationMs') is not None}
+    for event in events:
+        text = wording(event)
         if not text:
             continue
+        if event.get('dDurationMs') is None:
+            if (event.get('tStartMs'), event.get('wWinId'), text) in timed:
+                continue
+            raise ValueError('Caption duration is missing and no identical timed caption is available.')
+        if event.get('tStartMs') is None:
+            raise ValueError('Caption start time is missing.')
         start = float(event["tStartMs"]) / 1000
         end = start + float(event["dDurationMs"]) / 1000
         if not math.isfinite(start) or not math.isfinite(end) or start < 0 or end <= start:

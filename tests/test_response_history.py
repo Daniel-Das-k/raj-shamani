@@ -50,12 +50,22 @@ class ResponseHistoryTests(unittest.TestCase):
         self.assertNotIn("secret-header", json.dumps(record))
 
     def test_configured_credentials_are_redacted_from_stored_content(self):
-        with patch.dict(os.environ, {"GROQ_API_KEY": "credential-not-for-logs"}):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "credential-not-for-logs"}):
             body, _ = recorded_answer(self.demo, self.history, {"question": "accidentally pasted credential-not-for-logs"})
         record = self.history.get(body["record_id"])
         self.assertNotIn("credential-not-for-logs", json.dumps(record))
         self.assertIn("[redacted]", record["question"])
         self.assertNotIn("credential-not-for-logs", json.dumps(self.history.list()))
+
+    def test_openai_quota_failure_explains_billing_instead_of_waiting(self):
+        for detail in ({"code": "insufficient_quota"}, {"error": {"code": "insufficient_quota"}}):
+            error = RuntimeError("private provider error")
+            error.status_code = 429
+            error.body = detail
+            self.demo.answer.side_effect = error
+            body, _ = recorded_answer(self.demo, self.history, {"question": "Explain focus"})
+            self.assertIn("billing", body["error"])
+            self.assertNotIn("Wait a minute", body["error"])
 
     def test_concurrent_responses_are_unique_and_paginated_without_loss(self):
         def ask(index):

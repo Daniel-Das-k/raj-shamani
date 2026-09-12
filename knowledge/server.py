@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .answers import ask
 from .ingest import ingest, links_from_file, read_json
-from .providers import Embedder, GroqJSON
+from .providers import Embedder, OpenAIJSON
 from .store import Store
 from .transcripts import citation, youtube_source
 from .translations import translate_citations
@@ -29,7 +29,7 @@ def load_settings():
     from dotenv import dotenv_values
     # Read changes made to .env while the demo is running; never return key values.
     values = dotenv_values(ROOT / ".env")
-    for key in ("DEEPGRAM_API_KEY", "SUPERMEMORY_API_KEY", "GROQ_API_KEY", "GROQ_CHAT_MODEL", "DEEPGRAM_DIARIZER"):
+    for key in ("DEEPGRAM_API_KEY", "SUPERMEMORY_API_KEY", "OPENAI_API_KEY", "OPENAI_CHAT_MODEL", "GROQ_API_KEY", "GROQ_CHAT_MODEL", "DEEPGRAM_DIARIZER"):
         if values.get(key):
             os.environ[key] = values[key]
 
@@ -40,7 +40,7 @@ class Demo:
         self.links_file = links_file
         self.database = data_dir / "knowledge.sqlite3"
         self.embedder = embedder or Embedder(ROOT / "cache" / "embeddings")
-        self.llm = llm or GroqJSON()
+        self.llm = llm or OpenAIJSON()
         self.runtime_lock = threading.Lock()
         self.job_lock = threading.Lock()
         self.job = {"running": False, "items": []}
@@ -69,7 +69,7 @@ class Demo:
             job = copy.deepcopy(self.job)
         return {"sources": sources, "links_count": len(links), "links_error": error,
                 "credentials": {"transcription": bool(os.getenv("DEEPGRAM_API_KEY")),
-                                "answers": bool(os.getenv("GROQ_API_KEY"))}, "job": job}
+                                "answers": bool(os.getenv("OPENAI_API_KEY"))}, "job": job}
 
     def start_ingestion(self, urls=None):
         load_settings()
@@ -118,7 +118,7 @@ class Demo:
         with self.runtime_lock, closing(Store(self.database)) as store:
             passages = store.search([question], self.embedder, limit=5)
             excerpts = [citation(p, p["words"][0]["index"], p["words"][-1]["index"]) for p in passages]
-            if excerpts and os.getenv("GROQ_API_KEY"):
+            if excerpts and os.getenv("OPENAI_API_KEY"):
                 try:
                     excerpts = translate_citations(excerpts, store, self.llm)
                 except Exception:
@@ -272,6 +272,11 @@ def recorded_answer(demo, history, payload):
 def safe_error(exc):
     status = getattr(exc, "status_code", None)
     if status == 429:
+        body = getattr(exc, 'body', None)
+        if isinstance(body, dict):
+            detail = body.get('error', body)
+            if isinstance(detail, dict) and detail.get('code') == 'insufficient_quota':
+                return 'The OpenAI API account has insufficient quota. Check its API billing balance and usage limits.'
         return "The answer provider's usage limit was reached. Wait a minute, then try again."
     if status == 404:
         return "The configured answer model is unavailable. Check the server's model setting."

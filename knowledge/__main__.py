@@ -8,7 +8,7 @@ import sys
 
 from .answers import ask, render_answer
 from .ingest import ingest, links_from_file
-from .providers import Embedder, GroqJSON
+from .providers import Embedder, OpenAIJSON
 from .store import Store
 from .transcripts import citation
 
@@ -65,7 +65,7 @@ def main():
             results = [citation(p, p["words"][0]["index"], p["words"][-1]["index"]) for p in passages]
             print(json.dumps(results, ensure_ascii=False, indent=2))
         else:
-            result = ask(args.question, store, embedder, GroqJSON(), translate=args.translate)
+            result = ask(args.question, store, embedder, OpenAIJSON(), translate=args.translate)
             print(json.dumps(result, ensure_ascii=False, indent=2) if args.json else render_answer(result))
         return 0
     except Exception as exc:
