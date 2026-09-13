@@ -52,6 +52,24 @@ class RetrievalTests(unittest.TestCase):
         self.assertTrue(result['excerpts'])
         self.client.search.assert_called_once()
 
+    def test_clear_topics_are_searched_despite_optional_planner_clarification(self):
+        self.library.answer_strategy = 'video_guide'
+        for question in ['can u tell me how ill become a billionaire at 22',
+                         'how to tell to my boss my opinon on a matter of si ject']:
+            with self.subTest(question=question):
+                self.llm.complete.side_effect = [{'clarifying_question': 'Which specific field?', 'queries': []}]
+                result = retrieve(self.library, question)
+                self.assertNotIn('clarifying_question', result)
+                self.assertEqual(result['retrieval']['queries'], [question])
+                self.assertIn('rejected_clarification', result['retrieval'])
+
+    def test_guide_still_clarifies_a_question_without_named_options(self):
+        self.library.answer_strategy = 'video_guide'
+        self.llm.complete.side_effect = [{'clarifying_question': 'Which options?', 'queries': []}]
+        result = retrieve(self.library, 'Which one is better for me?')
+        self.assertEqual(result['clarifying_question'], 'Which options?')
+        self.client.search.assert_not_called()
+
     def test_missing_options_asks_clarification_before_searching(self):
         self.llm.complete.side_effect = [{'clarifying_question': 'Which options are you comparing?', 'queries': []}]
         result = retrieve(self.library, 'Which one is better for me?')

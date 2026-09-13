@@ -1,13 +1,13 @@
 const $ = (selector) => document.querySelector(selector);
 let currentStatus = null;
 let requesting = false;
-let priorSituation = '';
 let channelPreview = null;
 let findingChannel = false;
 let videoOffset = 0;
 let pageSources = [];
 let videoFilter = '';
 let historyOffset = 0;
+
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -48,7 +48,7 @@ function updateControls() {
   $('#process').disabled = Boolean(currentStatus?.job?.running) || !currentStatus?.credentials.transcription || !currentStatus?.links_count;
   $('#add-link').disabled = Boolean(currentStatus?.job?.running) || !currentStatus?.credentials.transcription;
   if (channels) $('#add-link').disabled = !currentStatus.credentials.indexing;
-  $('#ask-button').firstChild.textContent = requesting ? 'Finding moments… ' : priorSituation ? 'Continue ' : 'Find video moments ';
+  $('#ask-button').firstChild.textContent = requesting ? 'Preparing reply… ' : 'Ask library ';
   $('#process').textContent = currentStatus?.job?.running ? 'Processing videos…' : ready ? 'Process / refresh videos' : 'Process videos';
 }
 
@@ -197,7 +197,26 @@ function showAnswer(answer) {
   const output = $('#answer');
   output.replaceChildren();
   if (Array.isArray(answer.recommendations)) {
-    output.append(element('p', 'answer-note', answer.message));
+    if (answer.points?.length) {
+      const reply = element('div', 'answer-reply');
+      for (const point of answer.points) {
+        const paragraph = element('p', 'reply-paragraph', point.text);
+        const linked = new Set();
+        for (const cite of point.citations) {
+          const index = answer.recommendations.findIndex(r => r.citation.source_id === cite.source_id &&
+            r.citation.start === cite.start && r.citation.end === cite.end);
+          if (index < 0 || linked.has(index)) continue;
+          linked.add(index);
+          const link = element('a', 'reference-link', ` [${index + 1}]`);
+          link.href = `#answer-reference-${index + 1}`;
+          paragraph.append(link);
+        }
+        reply.append(paragraph);
+      }
+      output.append(reply);
+    } else {
+      output.append(element('p', 'answer-note', answer.message));
+    }
     if (answer.recommendations.length) {
       const moments = element('section', 'answer-references');
       moments.append(element('h2', '', 'Suggested video moments'));
@@ -250,11 +269,10 @@ function showAnswer(answer) {
 $('#question-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (requesting) return;
-  const input = $('#question').value.trim();
-  if (!input) return;
-  const question = priorSituation ? `${priorSituation}\nAdditional detail: ${input}` : input;
+  const question = $('#question').value.trim();
+  if (!question) return;
   if (question.length > 6000) {
-    requestMessage('Please shorten your situation and follow-up to under 6,000 characters.', true);
+    requestMessage('Please shorten your question to under 6,000 characters.', true);
     return;
   }
   requesting = true;
@@ -263,25 +281,17 @@ $('#question-form').addEventListener('submit', async (event) => {
   $('#examples').hidden = true;
   $('#reset').hidden = false;
   $('#answer').replaceChildren();
-  requestMessage('Finding useful video moments and checking their descriptions…');
+  requestMessage('Finding relevant moments and preparing a reply from the excerpts…');
   const slow = setTimeout(() => requestMessage('Still checking which moments are useful for your question…'), 20000);
   try {
     const payload = {question};
     if ($('#video-scope').value) payload.source_id = $('#video-scope').value;
     const answer = await api('/api/ask', payload);
     showAnswer(answer);
-    if (answer.status === 'needs_clarification') {
-      priorSituation = question;
-      $('#question').value = '';
-      $('#question').placeholder = answer.message;
-      $('#question').focus();
-      $('label[for="question"]').textContent = 'A little more detail';
-    } else {
-      priorSituation = '';
-      $('label[for="question"]').textContent = 'What would you like to know?';
-      $('#question').value = question;
-      $('#question').placeholder = 'Ask a question about the videos in your library.';
-    }
+    $('label[for="question"]').textContent = 'What would you like to know?';
+    $('#question').value = question;
+    $('#question').placeholder = 'Ask a question about the videos in your library.';
+    if (answer.status === 'needs_clarification') $('#question').focus();
     requestMessage(answer.recording_error || (answer.record_id ? 'Response saved. Reopen or download it below in Saved responses.' : ''), Boolean(answer.recording_error));
   } catch (error) {
     requestMessage(error.message, true);
@@ -296,7 +306,6 @@ $('#question-form').addEventListener('submit', async (event) => {
 
 $('#reset').addEventListener('click', () => {
   if (requesting) return;
-  priorSituation = '';
   $('#question').value = '';
   $('#question').placeholder = 'Ask a question about the videos in your library.';
   $('label[for="question"]').textContent = 'What would you like to know?';
@@ -311,7 +320,6 @@ $('#reset').addEventListener('click', () => {
 
 document.querySelectorAll('[data-question]').forEach((button) => button.addEventListener('click', () => {
   if (requesting) return;
-  priorSituation = '';
   $('#question').value = button.dataset.question;
   $('label[for="question"]').textContent = 'What would you like to know?';
   $('#question').focus();
@@ -407,7 +415,7 @@ function showChannelLibrary(status) {
   $('#ingest-note').textContent = !status.worker_running ? 'The import worker is stopped. Restart the app to resume.' : 'Imports resume after a restart. Already indexed videos are kept.';
   if (status.read_only) {
     $('#empty-state h2').textContent = counts.ready ? 'Find a useful place to start' : 'The video library is not ready yet';
-    $('#empty-state p').textContent = counts.ready ? 'Explore Raj Shamani’s conversations through relevant clips, reasons to watch, and clear limits when a direct answer is missing.' : 'Questions will be available once the library has indexed videos.';
+    $('#empty-state p').textContent = counts.ready ? 'Get a clear reply from the relevant passages, then explore the supporting moments and their limitations.' : 'Questions will be available once the library has indexed videos.';
   }
 }
 
@@ -483,7 +491,6 @@ async function loadResponseHistory() {
           const record = await api(`/api/responses/${item.id}`);
           // Opening a recording makes no generation or ingestion request.
           if (requesting) return;
-          priorSituation = '';
           $('#question').value = record.question;
           const scope = $('#video-scope');
           if (record.source_id && !Array.from(scope.options || []).some(option => option.value === record.source_id)) {

@@ -1,9 +1,10 @@
 # Knowledge Retriever
 
 Find useful moments in Raj Shamani's indexed videos. Describe a question or situation
-and get short descriptions of relevant discussions, why each may help, what it does
-not establish, and timestamp links to watch. The reader acts as a guide to the channel's
-content rather than trying to produce a final answer to every question.
+and get one concise reply based on the retrieved passages, followed by summaries of
+useful video moments, their relevance and limitations, and timestamp links to watch.
+Supported advice addresses the reader directly; missing facts and personal outcomes
+are not filled in from general model knowledge.
 
 For example: "What do the videos say about customer validation?" or "Where is work
 stress discussed?" Suggestions distinguish direct discussion from related background.
@@ -66,7 +67,13 @@ passages is summarized without the user question. A separate selection step sees
 question and these fixed summaries, then adds a relevance explanation and scope limit.
 A separate review checks each proposed card against its own original excerpt and can
 downgrade a direct match to related, or reject it. Up to three checked, nonredundant
-moments are shown. There is no generated final-answer paragraph in this workflow.
+moments are shown. A synthesis step combines their original passages into one concise
+reply and checks every sentence against its own cited excerpts. Unsupported sentences
+can be removed while keeping independently checked advice. A separate scope check
+validates what the reply says the retrieved passages do not establish. Partial replies
+name the missing part. One repair is allowed; if synthesis cannot be verified or its
+provider fails, the checked moments remain available without an unchecked answer.
+See [the consolidated reply check](CONSOLIDATED_REPLY_REVIEW.md).
 A model check can still miss semantic mistakes or overstate how useful a clip is.
 See [the workflow and limits](CHANNEL_IMPORT.md).
 
@@ -141,8 +148,9 @@ public embedding model from Hugging Face; subsequent runs reuse its local cache.
 `sources` and empty-collection queries need no API keys or model downloads.
 
 The CLI is stateless: after a clarification, submit a question containing both the
-original question and the missing detail. The browser combines clarification details
-automatically. Browser requests are now recorded in `data/responses.sqlite3` and
+original question and the missing detail. Every browser submission is an independent query containing only the current input.
+After a clarification, rewrite the complete question with the missing detail; previous
+questions and saved responses are never automatically added to a new request. Browser requests are now recorded in `data/responses.sqlite3` and
 available under **Saved responses**, with View response and Download JSON controls.
 Each record includes the question, selected video, final answer or safe error, exact
 citation data, model, timestamp, and elapsed time. Recording starts with new requests;

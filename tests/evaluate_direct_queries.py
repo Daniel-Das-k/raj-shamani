@@ -50,7 +50,7 @@ def main():
             self.calls = []
         def complete(self, system, data, **kwargs):
             result = super().complete(system, data, **kwargs)
-            kind = ('guide_review' if 'recommendation' in data else 'guide_selection' if 'summaries' in data else 'guide_description' if 'excerpt' in data
+            kind = ('reply_scope_check' if 'original_excerpts' in data else 'consolidated_reply' if 'moments' in data else 'guide_review' if 'recommendation' in data else 'guide_selection' if 'summaries' in data else 'guide_description' if 'excerpt' in data
                     else 'verification' if 'items' in data else 'reference_summary' if 'reference_excerpt' in data else 'source_reading' if 'passage' in data
                     else 'statement_selection' if 'rejected_ids' in data else 'repair' if 'previous_draft' in data
                     else 'ranking' if 'Select evidence' in system or 'Select up to SIX' in system else 'planning' if 'search queries' in system or 'Plan a search' in system else 'generation')
@@ -70,7 +70,7 @@ def main():
         'started_at': datetime.now(timezone.utc).isoformat(), 'fixture': str(args.fixture),
         'answer_strategy': args.answer_strategy, 'replayed_retrieval_from': str(args.replay_results) if args.replay_results else None,
         'code_sha256': {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in [
-            'knowledge/caption_retrieval.py', 'knowledge/caption_answers.py', 'knowledge/evidence_answers.py', 'knowledge/video_guide.py', 'knowledge/reference_summaries.py', 'knowledge/answer_language.py', 'knowledge/answers.py', 'knowledge/providers.py']},
+            'knowledge/caption_retrieval.py', 'knowledge/caption_answers.py', 'knowledge/evidence_answers.py', 'knowledge/video_guide.py', 'knowledge/guide_reply.py', 'knowledge/reference_summaries.py', 'knowledge/answer_language.py', 'knowledge/answers.py', 'knowledge/providers.py']},
         'ready_sources': [{'id': v['id'], 'revision': v['revision']} for v in library.ready_videos()],
     })
     def save():

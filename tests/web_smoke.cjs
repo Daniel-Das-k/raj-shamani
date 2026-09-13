@@ -92,22 +92,32 @@ test('direct answers render text, original quote, timestamp link and bounded pla
   assert.equal($('#answer').children.length, 1);
 });
 
-test('clarification carries the original question into the answer request', async () => {
+test('every submission after clarification is independent, including a short reply', async () => {
   const { $, requests } = await app([
     {status: 'needs_clarification', message: 'Which topic?', points: []}, answer,
   ]);
   const submit = () => $('#question-form').listeners.submit({preventDefault() {}});
   $('#question').value = 'Explain what they said.';
   await submit();
-  assert.equal($('#question').placeholder, 'Which topic?');
+  assert.equal($('#question').value, 'Explain what they said.');
   $('#question').value = 'Customer validation.';
   await submit();
-  assert.equal(requests[1].data.question, 'Explain what they said.\nAdditional detail: Customer validation.');
+  assert.equal(requests[1].data.question, 'Customer validation.');
   assert.equal($('#question').value, requests[1].data.question);
   assert.equal($('#ask-button').disabled, false);
   $('#reset').listeners.click();
   assert.equal($('#answer').children.length, 0);
   assert.equal($('#question').value, '');
+});
+
+test('a new topic after clarification is sent alone and does not inherit the previous question', async () => {
+  const {$, requests} = await app([{status: 'needs_clarification', message: 'Which field?', points: []}, answer]);
+  const submit = () => $('#question-form').listeners.submit({preventDefault() {}});
+  $('#question').value = 'How can I become a billionaire at 22?';
+  await submit();
+  $('#question').value = 'how to tell to my boss my opinon on a matter of si ject';
+  await submit();
+  assert.equal(requests[1].data.question, 'how to tell to my boss my opinon on a matter of si ject');
 });
 
 test('video guide shows relevance and limits without manufacturing an answer paragraph', async () => {
@@ -131,6 +141,23 @@ test('video guide shows relevance and limits without manufacturing an answer par
   assert.ok(!$('#answer').children.some(n => n.className === 'answer-reply'));
   context.showAnswer({status: 'insufficient_evidence', message: 'No useful match.', points: [], recommendations: []});
   assert.equal($('#answer').children.length, 1);
+});
+
+test('consolidated reply precedes the moments and links to their existing numbers', async () => {
+  const {context, $} = await app();
+  const second = {...citation, start: citation.start + 100, end: citation.end + 100};
+  const recommendations = [citation, second].map(c => ({match: 'related', summary: 'A source summary.',
+    why_relevant: 'Useful context.', limitation: 'No promised outcome.', citation: c}));
+  context.showAnswer({status: 'answered', message: 'Generic guide notice.', recommendations,
+    points: [{text: 'Build a product people need. An outcome by 22 is not established.', citations: [second, citation, second]}]});
+  const [reply, references] = $('#answer').children;
+  assert.equal(reply.className, 'answer-reply');
+  assert.equal(reply.children.length, 1);
+  assert.equal(reply.children[0].textContent, 'Build a product people need. An outcome by 22 is not established.');
+  assert.deepEqual(reply.children[0].children.map(n => n.href), ['#answer-reference-2', '#answer-reference-1']);
+  assert.equal(references.className, 'answer-references');
+  assert.equal(references.children.length, 3);
+  assert.ok(!$('#answer').children.some(n => n.textContent === 'Generic guide notice.'));
 });
 
 test('internal passage IDs are not exposed in a recommendation explanation', async () => {

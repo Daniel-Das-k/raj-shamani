@@ -22,8 +22,9 @@ const fs = require('node:fs/promises');
     assert.equal(status.worker_running, false);
     assert.ok(status.counts.ready > 0);
     assert.equal(await page.locator('#channel-tools').isVisible(), false);
-    const question = 'RACI mein responsible aur accountable ka difference kya hai? Team mein ownership clear karne ke liye ise kaise use karein?';
-    await page.locator('#video-scope').selectOption('XwawXRaNfzM');
+    const consolidated = process.argv.includes('--consolidated-reply');
+    const question = consolidated ? 'can u tell me how ill become a billionaire at 22' : 'RACI mein responsible aur accountable ka difference kya hai? Team mein ownership clear karne ke liye ise kaise use karein?';
+    await page.locator('#video-scope').selectOption(consolidated ? '' : 'XwawXRaNfzM');
     await page.locator('#question').fill(question);
     const pending = page.waitForResponse(r => r.url().endsWith('/api/ask'), {timeout: 180000});
     await page.locator('#ask-button').click();
@@ -31,19 +32,28 @@ const fs = require('node:fs/promises');
     const output = `data/ui-checks/video-guide/${new Date().toISOString().replaceAll(':', '-')}`;
     await fs.mkdir(output, {recursive: true});
     await fs.writeFile(`${output}/response.json`, JSON.stringify(answer, null, 2));
-    assert.equal(answer.status, 'recommendations', JSON.stringify(answer));
+    assert.ok(['answered', 'recommendations'].includes(answer.status), JSON.stringify(answer));
+    if (consolidated) assert.equal(answer.reply_status, 'ready', JSON.stringify(answer));
     assert.ok(answer.recommendations.length > 0 && answer.recommendations.length <= 3);
-    assert.deepEqual(answer.points, []);
+    if (consolidated) assert.equal(answer.points.length, 1);
     await page.locator('.answer-references').waitFor();
-    assert.equal(await page.locator('.answer-reply').count(), 0);
+    assert.equal(await page.locator('.answer-reply').count(), answer.points.length ? 1 : 0);
+    if (answer.points.length) {
+      assert.ok((await page.locator('.answer-reply').innerText()).includes(answer.points[0].text));
+      assert.ok(await page.evaluate(() => Boolean(document.querySelector('.answer-reply').compareDocumentPosition(
+        document.querySelector('.answer-references')) & Node.DOCUMENT_POSITION_FOLLOWING)));
+      for (const link of await page.locator('.answer-reply .reference-link').all()) {
+        assert.equal(await page.locator(await link.getAttribute('href')).count(), 1);
+      }
+    }
     assert.equal(await page.locator('.evidence').count(), answer.recommendations.length);
     assert.deepEqual(await page.locator('.evidence blockquote').allTextContents(), answer.recommendations.map(r => r.citation.quote));
     for (const [index, card] of answer.recommendations.entries()) {
       const node = page.locator('.evidence').nth(index);
       assert.ok((await node.innerText()).includes(card.summary));
-      assert.ok((await node.innerText()).includes(card.why_relevant));
+      assert.ok((await node.innerText()).includes(card.why_relevant.replace(/^P\d+\b/, 'This moment').replace(/\bP\d+\b/g, 'another retrieved moment')));
       if (card.match === 'related') assert.ok(card.limitation && (await node.innerText()).includes(card.limitation));
-      assert.equal(card.citation.source_id, 'XwawXRaNfzM');
+      if (!consolidated) assert.equal(card.citation.source_id, 'XwawXRaNfzM');
       assert.equal(await node.locator('.time-link').getAttribute('href'), card.citation.url);
     }
     assert.equal(await page.locator('.original-transcript[open]').count(), 0);
@@ -68,6 +78,7 @@ const fs = require('node:fs/promises');
     await page.locator('.saved-response').filter({hasText: question}).first().locator('button').click();
     await page.locator('.answer-references').waitFor();
     assert.equal(requests, 1);
+    if (consolidated) assert.ok((await page.locator('.answer-reply').innerText()).includes(answer.points[0].text));
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({output, record_id: answer.record_id, coverage: answer.coverage,
       recommendations: answer.recommendations.length, ready_videos: status.counts.ready,

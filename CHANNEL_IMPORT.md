@@ -41,11 +41,15 @@ every six hours while the process is running. There is no background OS schedule
 - OpenAI (`gpt-4.1-mini` by default) generates an answer from retrieved evidence; a second model call checks support.
   The browser cites complete retrieved passages to retain nearby qualifications.
 
-The Raj Shamani reader now recommends useful moments rather than synthesizing a final
-answer. Each excerpt is summarized without the question. A separate bridge step
+The Raj Shamani reader shows a consolidated reply followed by useful moments. Each excerpt is summarized without the question. A separate bridge step
 selects immutable summaries and explains why each connects to the question and what
 it does not establish. A separate review checks all three fields and the direct/
-related classification. Up to three checked moments are displayed; unrelated content
+related classification. The original passages behind those checked cards are then
+synthesized into one reply. Each substantive sentence is checked against its cited original excerpts. Unsupported
+sentences may be omitted while independently checked advice is kept. A separate scope
+check validates the stated limitation against the bounded set of originals; one repair
+is allowed. Failure leaves the cards available.
+Up to three checked moments are displayed; unrelated content
 is not forced into a suggestion. Questions, cards and review decisions are retained
 locally. The evaluation default `video_guide` matches the app; `isolated_statements`
 preserves the previous workflow. See [the guide review](VIDEO_GUIDE_REVIEW.md).
@@ -131,7 +135,12 @@ Cross-language recall and answer quality still need broader evaluation.
 The planning step can instead return one clarifying question when the topic or
 referenced options are missing. The reader then returns `needs_clarification` without
 searching or generating an answer, and saves the diagnostic. The existing frontend
-asks for more detail and includes the original question with the user's follow-up.
+treats every submission as an independent query. There is no follow-up option or
+automatic concatenation. After a clarification, the reader can edit the full question
+and submit it again. For clearly named English
+topics, a search-first guard ignores optional planner clarification and searches the
+original question. Generic questions without named options can still ask for clarification;
+non-English requests retain the planner's language-aware decision.
 Clear factual questions and broad topic questions do not require a personal situation.
 
 The server binds to loopback and has no user accounts. Public deployment still needs
@@ -140,7 +149,7 @@ and a larger quality/load evaluation. The worker lock currently requires macOS/L
 
 ## Saved responses
 
-The current guide records its introductory message, recommended moments, summaries,
+The current guide records its consolidated reply when supported, recommended moments, summaries,
 relevance explanations, limitations, and original citations. Saved recommendations
 reopen without another model call. The following describes the earlier answer workflow;
 previous recordings remain readable with their original wording.

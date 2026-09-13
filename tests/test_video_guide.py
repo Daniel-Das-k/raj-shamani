@@ -1,5 +1,6 @@
 import copy
 import unittest
+from unittest.mock import patch
 
 from knowledge.caption_retrieval import source_citation
 from knowledge.supermemory_captions import caption_source
@@ -30,6 +31,9 @@ class GuideLLM:
 
 class VideoGuideTests(unittest.TestCase):
     def setUp(self):
+        self.reply_patch = patch('knowledge.video_guide.compose_reply', return_value={'points': [], 'reply_status': 'insufficient_evidence'})
+        self.reply = self.reply_patch.start()
+        self.addCleanup(self.reply_patch.stop)
         self.source = caption_source({'id': 'abcdefghijk', 'title': 'Customer feedback'}, {'events': [
             {'tStartMs': 10000, 'dDurationMs': 5000, 'segs': [{'utf8': 'Talk to customers to learn what they need.'}]}]}, 'en')
         self.sources = {self.source['id']: self.source}
@@ -140,6 +144,21 @@ class VideoGuideTests(unittest.TestCase):
         self.llm.complete = complete
         result = self.run_guide()
         self.assertEqual(result['recommendations'][0]['summary'], self.llm.card['summary'])
+
+    def test_checked_reply_is_added_without_replacing_the_moments(self):
+        self.reply.return_value = {'points': [{'text': 'Talk to customers.', 'citations': self.citations}],
+                                   'reply_status': 'ready', 'reply_coverage': 'partial'}
+        result = self.run_guide()
+        self.assertEqual(result['status'], 'answered')
+        self.assertEqual(result['points'][0]['text'], 'Talk to customers.')
+        self.assertEqual(len(result['recommendations']), 1)
+        self.assertEqual(self.reply.call_args.args[1], result['recommendations'])
+
+    def test_failed_synthesis_keeps_already_checked_moments(self):
+        self.reply.return_value = {'points': [], 'reply_status': 'provider_error'}
+        result = self.run_guide()
+        self.assertEqual(result['status'], 'recommendations')
+        self.assertEqual(len(result['recommendations']), 1)
 
     def test_empty_retrieval_needs_no_model_calls(self):
         result = recommend_moments('Explain.', [], {}, self.llm)

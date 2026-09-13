@@ -15,18 +15,18 @@
   <main class="workspace">
     <section class="conversation" aria-labelledby="ask-title">
       <div class="section-title"><h1 id="ask-title">Explore Raj Shamani’s video library</h1><button id="reset" class="text-button" type="button" hidden>New question</button></div>
-      <p class="intro">Find useful video moments for your question, with a short description, why they may help, and links to watch.</p>
+      <p class="intro">Get a clear reply based on the videos, with supporting moments, short summaries, and timestamp links.</p>
       <form id="question-form">
         <label for="video-scope">Search in</label>
         <select id="video-scope"><option value="">All indexed videos</option></select>
         <label for="question">What would you like to know?</label>
         <textarea id="question" name="question" rows="4" maxlength="6000" required placeholder="What do these videos say about understanding what customers need? Show me the relevant moments."></textarea>
-        <div class="form-footer"><span>Ask in English, Hindi, Tamil, or a mix.</span><button id="ask-button" class="primary" type="submit">Find video moments <span aria-hidden="true">↗</span></button></div>
+        <div class="form-footer"><span>Ask in English, Hindi, Tamil, or a mix.</span><button id="ask-button" class="primary" type="submit">Ask library <span aria-hidden="true">↗</span></button></div>
       </form>
       <div class="examples" id="examples"><span>Try a question</span><button type="button" data-question="What do these videos say about focus and distractions?">Explain a topic</button><button type="button" data-question="Compare what the videos say about understanding customer needs. Include the supporting moments.">Compare ideas</button><button type="button" data-question="इन वीडियो में काम के तनाव के बारे में कहाँ बात हुई है? समय और वीडियो लिंक दें।">सही पल खोजें</button></div>
       <p id="request-status" role="status" aria-live="polite" hidden></p>
       <div id="answer" aria-live="polite"></div>
-      <section id="empty-state" class="empty-state"><svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6 5h20v17H15l-6 5v-5H6z"/><path d="M11 11h10M11 16h7"/></svg><h2>Find a useful place to start</h2><p>Describe your question or situation. We’ll suggest relevant discussions and distinguish direct coverage from related background. Some questions may have no useful match.</p></section>
+      <section id="empty-state" class="empty-state"><svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6 5h20v17H15l-6 5v-5H6z"/><path d="M11 11h10M11 16h7"/></svg><h2>Find a useful place to start</h2><p>Describe your question or situation. Get a reply grounded in the videos, with related discussions and clear limits when part of your question is not covered.</p></section>
       <details id="response-history" class="response-history">
         <summary>Saved responses <span id="history-count"></span></summary>
         <p class="muted">New questions and responses are recorded locally, including citations and errors.</p>

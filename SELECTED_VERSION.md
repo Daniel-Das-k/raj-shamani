@@ -2,12 +2,15 @@
 
 The current default is `RajShamaniLibrary.answer_strategy = 'video_guide'`, following
 the user's request to connect people to useful channel content rather than force a
-final answer. Cards show what a moment discusses, why it may help, its limitations,
+unsupported final answer. A consolidated, checked reply now appears above the cards
+when the passages support one. It gives direct advice when requested, without promising
+personal outcomes or filling gaps. Cards show what a moment discusses, why it may help, its limitations,
 and an original timestamp link. Direct and related discussions are distinguished;
 no useful match is an acceptable result. The former direct-answer code remains
 available as `isolated_statements`, and its committed checkpoint is `f3e6412`.
 
-See [the video-guide evaluation](VIDEO_GUIDE_REVIEW.md) for the new results.
+See [the consolidated reply check](CONSOLIDATED_REPLY_REVIEW.md). The earlier
+[video-guide evaluation](VIDEO_GUIDE_REVIEW.md) records the cards-only workflow.
 
 ## Previous selection and preserved checkpoint
 
