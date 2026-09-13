@@ -55,6 +55,37 @@ See [channel import details](CHANNEL_IMPORT.md), the earlier
 [actual generated replies](VIDEO_QA_ACTUAL_ANSWERS.md).
 This remains a local single-user app, without public hosting or authentication.
 
+## Retrieval and answer reliability
+
+The reader combines Supermemory semantic search with keyword search over the existing
+saved captions, using up to two query reformulations and relevance selection. It keeps
+nearby transcript context and preserves canonical timestamp links. The reader extracts
+short statements from each passage independently, without exposing the user's question
+to that reading step. It selects up to three statements and verifies each against its
+own original passage. Python joins the checked statements into one reply and reuses them
+for their own reference summaries. A failed statement is excluded before one permitted
+reselection. A model check can still miss semantic mistakes or incomplete coverage.
+See [the workflow and limits](CHANNEL_IMPORT.md).
+
+The tester's 15 questions are in `tests/fixtures/direct_query_review.json`. Run the
+opt-in paired evaluation with `.venv/bin/python tests/evaluate_direct_queries.py`.
+It uses the configured OpenAI/Supermemory keys and incurs API usage, but never imports
+videos. It compares the baseline at `fe4048a` against the revised pipeline and saves
+full results locally in `data/accuracy-review/paired-results.json`. Existing results
+are reused; archive that file before a new full run. A verifier pass is not an
+independent accuracy score; review claims and summaries against their original captions.
+See [the measured results and remaining accuracy gaps](ACCURACY_IMPROVEMENTS.md).
+The [new 15-question review](WIDE_QUERY_REVIEW.md) includes every recorded reply,
+reference links, an assessment of the evidence, and prioritized improvements. Questions
+with missing topics or unnamed options now ask for clarification before retrieval.
+The latest [response improvement report](RESPONSE_IMPROVEMENTS.md) preserves the same
+15 questions and their exact before/after replies, reference summaries and timestamp links.
+All development runs, including unsuccessful approaches, remain under `data/accuracy-review/`.
+Normal app questions and replies continue to be saved in `data/responses.sqlite3` and can
+be reopened through Saved responses without making another answer request.
+The default evaluation strategy, `isolated_statements`, matches the reader. The optional
+`isolated_summaries` strategy preserves an alternative experiment and is not used by the app.
+
 ## Separate local transcription backend
 
 The original CLI commands below use Deepgram and local hybrid retrieval. Their

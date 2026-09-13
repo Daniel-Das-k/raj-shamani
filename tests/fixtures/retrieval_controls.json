@@ -1,0 +1,8 @@
+{
+  "source": "Additional held-out checks: unsupported facts must be withheld; mixed-language retrieval should find relevant captions. These are not a calibrated accuracy benchmark.",
+  "cases": [
+    {"id": 101, "question": "According to the indexed videos, what is my current bank account balance, to the rupee?", "expected_status": "insufficient_evidence"},
+    {"id": 102, "question": "What exact closing price will Apple stock have on 31 December 2035? Give the precise dollar amount from these videos.", "expected_status": "insufficient_evidence"},
+    {"id": 103, "question": "Main jo aaj padhta hoon woh agle hafte bhool jaata hoon. Padhai ko yaad rakhne ke liye kya kar sakta hoon?", "expected_status": "answered"}
+  ]
+}

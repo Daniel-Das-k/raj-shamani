@@ -8,6 +8,7 @@ import threading
 import time
 
 from .caption_answers import answer_captions
+from .evidence_answers import answer_from_evidence
 from .channel_store import ChannelStore
 from .ingest import read_json, write_json
 from .import_budget import BudgetStop, ImportBudget
@@ -273,25 +274,36 @@ class ChannelLibrary:
         if not self.answer_lock.acquire(blocking=False):
             raise ValueError("Another answer is being prepared. Please try again shortly.")
         try:
-            citations = self.search(question, source_id)["excerpts"]
+            retrieved = self.search(question, source_id)
+            citations = retrieved["excerpts"]
             sources = {}
             for cite in citations:
                 if cite["source_id"] not in sources:
                     record = self.store.rows("SELECT revision FROM videos WHERE id=?", (cite["source_id"],))[0]
                     sources[cite["source_id"]] = read_json(self.directory / f"{cite['source_id']}-{record['revision'][:12]}.json")
-            audit = {}
-            result = answer_captions(question, citations, sources, self.llm, audit=audit, whole_passages=True)
-            if result["status"] == "invalid_evidence":
-                # Preserve a failed draft for local diagnosis; it is never displayed as an answer.
+            audit = {"retrieval": retrieved.get("retrieval", {})}
+            options = {"max_repairs": self.answer_repairs} if hasattr(self, "answer_repairs") else {}
+            if getattr(self, 'isolate_reference_summaries', False):
+                options['isolate_summaries'] = True
+            if retrieved.get("clarifying_question"):
+                result = {"status": "needs_clarification", "message": retrieved["clarifying_question"], "points": []}
+                audit["final_status"] = "needs_clarification"
+            else:
+                generate = answer_from_evidence if getattr(self, 'answer_strategy', '') == 'isolated_statements' else answer_captions
+                result = generate(question, citations, sources, self.llm, audit=audit, whole_passages=True, **options)
+            if result["status"] == "invalid_evidence" or getattr(self, "read_only", False):
+                # Keep every reader attempt for evaluation, never display rejected drafts.
                 directory = self.data_dir / "response-diagnostics"
                 try:
                     directory.mkdir(parents=True, exist_ok=True)
                     diagnostic = json.dumps({"question": question, "model": self.llm.model_name,
-                                             "audit": audit, "citations": citations}, ensure_ascii=False)
+                                             "audit": audit, "citations": citations, "final": result}, ensure_ascii=False)
                     for key in ("OPENAI_API_KEY", "GROQ_API_KEY", "SUPERMEMORY_API_KEY", "DEEPGRAM_API_KEY", "HF_TOKEN"):
                         if os.getenv(key):
                             diagnostic = diagnostic.replace(json.dumps(os.environ[key], ensure_ascii=False)[1:-1], "[redacted]")
-                    write_json(directory / f"{time.time_ns()}.json", json.loads(diagnostic))
+                    diagnostic_id = str(time.time_ns())
+                    write_json(directory / f"{diagnostic_id}.json", json.loads(diagnostic))
+                    result["diagnostic_id"] = diagnostic_id
                 except OSError:
                     pass
             return result

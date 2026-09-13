@@ -7,7 +7,7 @@ from knowledge.providers import GroqJSON, OpenAIJSON
 
 
 class JSONProviderTests(unittest.TestCase):
-    def openai_response(self, response, model=None):
+    def openai_response(self, response, model=None, schema=None):
         sdk = MagicMock()
         client = sdk.OpenAI.return_value.__enter__.return_value
         client.responses.create.return_value = response
@@ -16,7 +16,7 @@ class JSONProviderTests(unittest.TestCase):
         if model:
             env["OPENAI_CHAT_MODEL"] = model
         with patch.dict(sys.modules, {"openai": sdk}), patch.dict("os.environ", env, clear=True):
-            result = OpenAIJSON().complete("Verify claims.", {"question": "क्या कहा?"})
+            result = OpenAIJSON().complete("Verify claims.", {"question": "क्या कहा?"}, schema=schema)
         return result, sdk, client.responses.create.call_args.kwargs
 
     def test_openai_uses_own_key_and_responses_json_without_storing(self):
@@ -37,6 +37,11 @@ class JSONProviderTests(unittest.TestCase):
         _, _, request = self.openai_response(SimpleNamespace(
             status="completed", output=[], output_text='{}'), model="configured-model")
         self.assertEqual(request["model"], "configured-model")
+
+    def test_schema_is_sent_as_strict_structured_output(self):
+        schema = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
+        _, _, request = self.openai_response(SimpleNamespace(status="completed", output=[], output_text='{}'), schema=schema)
+        self.assertEqual(request["text"]["format"], {"type": "json_schema", "name": "evidence_checks", "strict": True, "schema": schema})
 
     def test_openai_rejects_incomplete_refused_and_malformed_outputs(self):
         cases = [

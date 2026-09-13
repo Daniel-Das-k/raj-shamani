@@ -13,8 +13,10 @@ class RajLibraryTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.youtube, self.client = Mock(), Mock()
+        self.llm = Mock()
+        self.llm.complete.return_value = {"queries": []}
         self.library = RajShamaniLibrary(Path(temp.name), youtube=self.youtube,
-                                        client_factory=lambda: self.client)
+                                        client_factory=lambda: self.client, llm=self.llm)
         self.store = self.library.store
         self.store.add_channel({"id": CHANNEL_ID, "title": "Raj Shamani",
                                "url": "https://www.youtube.com/@rajshamani"})
@@ -67,7 +69,21 @@ class RajLibraryTests(unittest.TestCase):
         self.client.search.return_value = {"results": [
             {"metadata": {"video_id": "outside0001"}},
             {"metadata": {"video_id": "pending0001"}}]}
-        self.assertEqual(self.library.search("Explain leadership"), {"excerpts": []})
+        self.assertEqual(self.library.search("Explain leadership")["excerpts"], [])
+
+    def test_clarification_is_saved_without_generating_an_answer(self):
+        self.llm.model_name = 'synthetic-model'
+        self.llm.complete.return_value = {'clarifying_question': 'Which options are you comparing?', 'queries': []}
+        with patch('knowledge.channel_library.answer_captions') as generate, \
+                patch('knowledge.channel_library.answer_from_evidence') as statements:
+            result = self.library.answer('Which one is better for me?')
+        self.assertEqual(result['status'], 'needs_clarification')
+        self.assertEqual(result['message'], 'Which options are you comparing?')
+        self.assertEqual(result['points'], [])
+        self.assertIn('diagnostic_id', result)
+        generate.assert_not_called()
+        statements.assert_not_called()
+        self.client.search.assert_not_called()
 
     def handler(self):
         cls = handler_for(self.library)
@@ -75,6 +91,16 @@ class RajLibraryTests(unittest.TestCase):
         handler.allowed_request = Mock(return_value=True)
         handler.send_data = Mock()
         return handler
+
+    def test_reader_uses_isolated_statements_and_records_result(self):
+        self.llm.model_name = 'synthetic-model'
+        with patch.object(self.library, 'search', return_value={'excerpts': []}), \
+                patch('knowledge.channel_library.answer_from_evidence', return_value={
+                    'status': 'insufficient_evidence', 'points': [], 'message': 'No evidence.'}) as generate:
+            result = self.library.answer('Explain a clear topic.')
+        self.assertEqual(self.library.answer_strategy, 'isolated_statements')
+        self.assertEqual(generate.call_args.kwargs['max_repairs'], 1)
+        self.assertIn('diagnostic_id', result)
 
     def test_http_import_routes_are_disabled_even_when_called_directly(self):
         for route in ["/api/ingest", "/api/channels/preview", "/api/channels", "/api/channels/action"]:

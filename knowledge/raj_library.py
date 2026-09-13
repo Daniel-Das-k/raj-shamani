@@ -8,6 +8,12 @@ CHANNEL_ID = "UCzwCEE_PchiBULMnAJqhGVg"
 
 class RajShamaniLibrary(ChannelLibrary):
     read_only = True
+    answer_repairs = 1
+    answer_strategy = 'isolated_statements'
+
+    def search(self, question, source_id=None):
+        from .caption_retrieval import retrieve
+        return retrieve(self, question, source_id)
 
     def _adopt_trial(self):
         # Browsing an existing collection must not adopt or queue new documents.

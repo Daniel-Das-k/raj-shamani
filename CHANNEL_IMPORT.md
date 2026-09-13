@@ -41,6 +41,14 @@ every six hours while the process is running. There is no background OS schedule
 - OpenAI (`gpt-4.1-mini` by default) generates an answer from retrieved evidence; a second model call checks support.
   The browser cites complete retrieved passages to retain nearby qualifications.
 
+The Raj Shamani reader reads each passage independently, without the user question,
+then selects up to three short statements. Each selected statement is verified against
+only its own original excerpt. The checked statements form one reply and the summaries
+of their own references. Failed statements are excluded before one permitted reselection.
+Questions, final replies, rejected selections and readings are retained locally for review.
+See [the latest before/after replies](RESPONSE_IMPROVEMENTS.md). The evaluation default
+`isolated_statements` matches the app; `isolated_summaries` is an alternative experiment.
+
 This is RAG. The application does not create or query a graph database. It retains
 caption text and references; it does not archive YouTube media. Back up the entire
 data directory and retain access to the Supermemory account. A custom local data
@@ -49,7 +57,8 @@ directory does not create a separate remote tenant/container.
 Answers, reference summaries, and support checks use `OPENAI_API_KEY` from `.env`.
 `OPENAI_CHAT_MODEL` defaults to `gpt-4.1-mini`. The client explicitly connects to
 `https://api.openai.com/v1`, so an inherited endpoint override cannot redirect the key
-to another service. Responses use JSON mode with `store=false`. OpenAI API quota is
+to another service. Planning/ranking use JSON mode; reader answers and verification use
+strict JSON schemas with `store=false`. OpenAI API quota is
 separate from Supermemory indexing credits; billing quota failures are distinguished
 from temporary rate limits. Historical Groq evaluation scripts remain optional.
 The OpenAI migration passed 98 Python tests and eight frontend checks. A live equity
@@ -106,10 +115,23 @@ splitting, which is not yet automated. Deepgram is not called as a fallback by t
 worker. YouTube/provider limits can delay imports; no full-channel throughput claim
 has been established. Remote indexing that stays pending continues to be polled.
 
-Each answer searches up to eight remote results; broad questions are not an exhaustive
-review of every video. Native captions can contain recognition errors. Exact quote
+The reader searches the original question plus at most two short reformulations,
+each with up to eight remote results. It also searches an ephemeral local SQLite FTS5
+index built from the same ready videos' saved captions. This does not upload documents,
+change the index state, or include pending/other-channel videos. Rank fusion combines
+semantic and keyword results; overlapping windows are merged with a 150-second bound,
+and nearby original segments provide context. An LLM selects at most six relevant
+passages from at most 24 candidates. These searches are not an exhaustive review of
+every video. Malformed planning/ranking output falls back to the original question or
+validated candidates; provider errors are surfaced rather than retried indefinitely. Native captions can contain recognition errors. Exact quote
 and timestamp validation proves provenance, not factual or interpretive correctness.
 Cross-language recall and answer quality still need broader evaluation.
+
+The planning step can instead return one clarifying question when the topic or
+referenced options are missing. The reader then returns `needs_clarification` without
+searching or generating an answer, and saves the diagnostic. The existing frontend
+asks for more detail and includes the original question with the user's follow-up.
+Clear factual questions and broad topic questions do not require a personal situation.
 
 The server binds to loopback and has no user accounts. Public deployment still needs
 authentication, per-user isolation, managed worker execution, operational monitoring,
@@ -128,10 +150,24 @@ References display a labeled **Summary** first. **Show original excerpt** expand
 unchanged captions, including disfluencies and recognition errors. The control changes
 to **Hide original excerpt** while expanded. Timestamp links and excerpt playback remain
 available when collapsed.
-The existing generation call produces both reply and summaries; no extra rewrite call is
-added. The existing verification call separately checks each paragraph and each distinct
-summary against its own evidence. Any rejected or missing verification check withholds
-the answer. This uses additional tokens, but no additional provider requests.
+Generation produces both the reply and reference summaries. Verification checks each
+sentence against its own cited excerpts, with paragraph context used only to resolve
+pronouns. OpenAI structured output requires a named check for every answer/summary
+sentence; missing/extra checks and any unsupported sentence still fail closed. Reasons
+identify unsupported claims rather than just returning a generic rejection.
+Generation's schema restricts citations to retrieved passage IDs and at most three
+references per paragraph. Python resolves full original segment ranges, so the model
+does not need to reproduce long segment IDs. Verification selects named spans from
+each item's own evidence; Python resolves the supporting words and rejects unknown or
+out-of-scope spans. These checks enforce provenance and format; model judgments can
+still miss a semantic error, so an approved answer is not a guarantee of accuracy.
+One bounded repair can correct citation formatting, remove unsupported claims, or fix
+summaries. The replacement must pass full citation validation and support verification
+again. Corrupt source text/timing is never sent to a model for repair. A second failure
+withholds the answer; there is no unchecked fallback or retry-until-approved loop.
+A typical answered query uses four LLM calls (planning, passage selection, generation,
+verification), or up to six with a repair. This trades extra latency and tokens for
+retrieval coverage and complete checks; costs must include all calls.
 Reopening an old recording uses the new layout but preserves its originally saved wording.
 Older references without summaries still offer the expandable original transcript.
 New reference summaries state the substance directly in one or two short sentences,
@@ -175,9 +211,11 @@ and citations with original quotes, video URLs, and start/end times. Provider fa
 include their HTTP status and numeric retry interval where available, but no raw
 provider headers or error bodies. Configured API keys are redacted before storage.
 The response archive contains the final withheld-answer response for failed evidence
-checks. Rejected drafts and verification diagnostics are saved separately under
-`data/response-diagnostics/` for local debugging, with configured keys redacted; those
-drafts are never displayed as answers. A history storage failure leaves the generated
+checks. Every reader query's retrieval details, generated attempts, per-sentence verification
+checks, and final result are saved separately under `data/response-diagnostics/` for
+local debugging, with configured keys redacted. The response's `diagnostic_id` links to
+that file; rejected drafts are never displayed as answers. Provider exceptions still
+produce safe errors in response history and may interrupt diagnostic capture. A history storage failure leaves the generated
 answer usable and shows a warning.
 The history contains local questions and answers and is excluded from Git with `data/`.
 

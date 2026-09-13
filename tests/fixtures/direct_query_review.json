@@ -1,0 +1,80 @@
+{
+  "source": "Tester review dated 2026-09-13; reported outcomes are not accuracy labels.",
+  "cases": [
+    {
+      "id": 1,
+      "question": "I built a product, but only friends praise it. What should I test next?",
+      "tester_status": "invalid_evidence"
+    },
+    {
+      "id": 2,
+      "question": "Online sales have stopped growing. Should I approach stores?",
+      "tester_status": "invalid_evidence"
+    },
+    {
+      "id": 3,
+      "question": "I spend hours copying emails and data. Can AI handle this?",
+      "tester_status": "answered"
+    },
+    {
+      "id": 4,
+      "question": "I understand lessons today but forget them next week. Why?",
+      "tester_status": "insufficient_evidence"
+    },
+    {
+      "id": 5,
+      "question": "I unlock my phone without thinking while studying. How do I stop?",
+      "tester_status": "invalid_evidence"
+    },
+    {
+      "id": 6,
+      "question": "I rest every Sunday but still feel exhausted on Monday.",
+      "tester_status": "answered"
+    },
+    {
+      "id": 7,
+      "question": "I deliver my work, yet others get promoted. What am I missing?",
+      "tester_status": "invalid_evidence"
+    },
+    {
+      "id": 8,
+      "question": "My boss's plan seems wrong. How should I raise it?",
+      "tester_status": "answered"
+    },
+    {
+      "id": 9,
+      "question": "Should I buy another course or build something practical?",
+      "tester_status": "invalid_evidence"
+    },
+    {
+      "id": 10,
+      "question": "EMIs consume my salary despite regular raises. What should change?",
+      "tester_status": "invalid_evidence"
+    },
+    {
+      "id": 11,
+      "question": "A caller claiming to be my bank creates urgency. How do I judge it?",
+      "tester_status": "invalid_evidence"
+    },
+    {
+      "id": 12,
+      "question": "Diabetes runs in my family. What habits matter now?",
+      "tester_status": "invalid_evidence"
+    },
+    {
+      "id": 13,
+      "question": "My partner apologises but repeats the same behaviour. What should I notice?",
+      "tester_status": "invalid_evidence"
+    },
+    {
+      "id": 14,
+      "question": "I work best late at night. Am I harming my performance?",
+      "tester_status": "answered"
+    },
+    {
+      "id": 15,
+      "question": "Work thoughts continue after office hours. How do I switch off?",
+      "tester_status": "invalid_evidence"
+    }
+  ]
+}

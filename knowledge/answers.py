@@ -85,7 +85,11 @@ and omitted prerequisites. Faithful paraphrases with corrected grammar and trans
 are allowed. Direct advice is allowed when requested and supported; it does not need
 'the episode says' attribution, but must not turn suggestions into promised outcomes.
 Return exactly one check for every supplied integer id, with no extra ids:
-{"checks":[{"id":0,"supported":true}]}.
+{"checks":[{"id":0,"supported":true,"reason":"Brief explanation tied to the evidence."}]}.
+For a failed check identify the specific unsupported claim or missing qualification,
+not merely 'unsupported'. Do not demand verbatim wording for faithful paraphrases.
+Support is not the same as truth: do not use outside knowledge to approve a claim.
+Population statistics and anecdotes do not establish facts about this particular user.
 """
 
 
@@ -127,6 +131,21 @@ def validate_answer(result: dict, passages: list[dict]) -> dict:
     return {"status": status, "message": message, "points": validated}
 
 
+def claim_sentences(text):
+    """Review each sentence, keeping the full paragraph available for pronouns/context."""
+    import re
+    parts, start = [], 0
+    for match in re.finditer(r"(?<=[.!?।])\s+", text):
+        previous = text[start:match.start()].split()[-1]
+        if previous.lower() in {"dr.", "mr.", "mrs.", "ms.", "e.g.", "i.e."} or re.fullmatch(r"[A-Z]\.", previous):
+            continue
+        parts.append(text[start:match.start()])
+        start = match.end()
+    if text[start:].strip():
+        parts.append(text[start:].strip())
+    return parts
+
+
 def verify_answer(answer: dict, question: str, llm, audit=None) -> bool:
     excerpts, excerpt_ids = [], {}
 
@@ -138,9 +157,12 @@ def verify_answer(answer: dict, question: str, llm, audit=None) -> bool:
                              "quote": source["quote"], "speakers": source.get("speakers", [])})
         return excerpt_ids[key]
 
-    items = [{"id": index, "kind": "answer", "text": point["text"],
-              "excerpt_ids": list(dict.fromkeys(evidence_id(c) for c in point["citations"]))}
-             for index, point in enumerate(answer["points"])]
+    items = []
+    for index, point in enumerate(answer["points"]):
+        for sentence in claim_sentences(point["text"]):
+            items.append({"id": len(items), "kind": "answer", "text": sentence,
+                          "paragraph_index": index, "context": point["text"],
+                          "excerpt_ids": list(dict.fromkeys(evidence_id(c) for c in point["citations"]))})
     # Check every distinct summary against its own original, never another citation.
     summaries = set()
     for point in answer["points"]:
@@ -151,11 +173,98 @@ def verify_answer(answer: dict, question: str, llm, audit=None) -> bool:
             if key in summaries:
                 continue
             summaries.add(key)
-            items.append({"id": len(items), "kind": "reference_summary", "text": source["summary"],
-                          "excerpt_ids": [evidence_id(source)]})
-    raw = llm.complete(VERIFY_PROMPT, {"question": question, "items": items, "excerpts": excerpts})
+            for sentence in claim_sentences(source["summary"]):
+                items.append({"id": len(items), "kind": "reference_summary", "text": sentence,
+                              "context": source["summary"], "excerpt_ids": [evidence_id(source)]})
+    data = {"question": question, "items": items, "excerpts": excerpts}
+    if getattr(type(llm), "supports_schema", False):
+        # Models select stable spans; Python supplies their exact words. This avoids
+        # rejecting good support because a model corrected caption punctuation.
+        import re
+        support_spans, model_excerpts = {}, []
+        for excerpt in excerpts:
+            words = list(re.finditer(r"\S+", excerpt["quote"]))
+            spans = []
+            for start in range(0, len(words), 30):
+                end = min(start + 30, len(words)) - 1
+                sid = f"{excerpt['id']}:S{start // 30}"
+                quote = excerpt["quote"][words[start].start():words[end].end()]
+                support_spans[sid] = {"excerpt_id": excerpt["id"], "quote": quote}
+                spans.append({"id": sid, "text": quote})
+            model_excerpts.append({k: v for k, v in excerpt.items() if k != "quote"} | {"support_spans": spans})
+        data = {**data, "excerpts": model_excerpts}
+        # Required named fields prevent a valid main answer from concealing skipped summaries.
+        check_schema = {"type": "object", "properties": {
+            "evidence_ids": {"type": "array", "items": {"type": "string"}},
+            "unsupported_claims": {"type": "array", "items": {"type": "string"}},
+            "reason": {"type": "string"}, "supported": {"type": "boolean"}},
+            "required": ["evidence_ids", "unsupported_claims", "reason", "supported"], "additionalProperties": False}
+        ids = [str(item["id"]) for item in items]
+        item_schemas = {}
+        for item in items:
+            allowed = [sid for sid, span in support_spans.items() if span["excerpt_id"] in item["excerpt_ids"]]
+            item_schemas[str(item["id"])] = {**check_schema, "properties": {**check_schema["properties"],
+                "evidence_ids": {"type": "array", "items": {"type": "string", "enum": allowed}}}}
+        schema = {"type": "object", "properties": {"checks": {"type": "object",
+            "properties": item_schemas, "required": ids,
+            "additionalProperties": False}}, "required": ["checks"], "additionalProperties": False}
+        prompt = VERIFY_PROMPT.split("Return exactly one check")[0] + """Return a checks OBJECT keyed
+by every supplied item id as a string. Each value must contain supported (boolean) and
+reason (a short evidence-specific explanation), evidence_ids (IDs of supporting spans,
+such as E0:S2), and unsupported_claims (an array of any unsupported clauses). First find
+the supporting words, then identify unsupported clauses, then decide supported.
+Every approved item needs at least one supporting span ID from its allowed
+excerpt_ids and an empty unsupported_claims array. Cover EVERY factual clause with
+evidence. Each excerpt's support_spans contain its complete original text in order.
+Read adjacent spans to preserve qualifications and select multiple IDs where needed.
+Never invent IDs or cite a span from an excerpt that belongs to a different item.
+Each item is one sentence. Check EVERY
+clause in that sentence, including explanations after 'because', 'as', and 'which'.
+The context field only resolves pronouns; it is NOT evidence. Reject the whole sentence
+if even one clause is unsupported. Similarity of the overall topic is not sufficient.
+Watch for universal claims, invented institutional policies, guaranteed outcomes, and
+unstated causal conclusions. Review ALL answer sentences AND ALL reference-summary
+sentences separately. Faithful paraphrases are allowed; population statistics
+and anecdotes do not establish facts about this particular user. For rejection identify
+the specific unsupported claim or missing qualification. No outside knowledge.
+The question establishes only the user's stated situation, NEVER facts about a video
+example. Example: a user says sales stalled; a quote says a store sold well. 'This store
+grew after online sales stalled' is UNSUPPORTED unless the quote states the plateau.
+General explanations do not establish this user's causes or another person's motives.
+Example: a quote explains trauma repetition; 'Your partner might be repeating childhood
+trauma' is UNSUPPORTED without that history. Adding 'may' or 'might' does not fix this.
+Likewise population debt figures cannot explain a particular person's loan burden.
+Act as a skeptical editor: actively find a reason each sentence might misrepresent the
+evidence before approving it. Preserve WHO experienced WHAT, and WHAT caused a change.
+If advertising increased sales and funded a shop, a claim that the shop caused that
+same sales increase is false, even though all the words and numbers occur nearby.
+If a quote gives average wage growth, a claim that THIS user's income is falling is
+unsupported without their figures. If a quote lists scam warning signs, it does not
+establish that NO legitimate institution EVER behaves that way. Reject such clauses.
+Supported general suggestions and clearly labelled possibilities are allowed, but do
+not turn one-sided evidence into a verdict on both sides of a comparison.
+"""
+        structured = llm.complete(prompt, data, schema=schema)
+        checks = structured.get("checks")
+        if not isinstance(checks, dict) or set(checks) != set(ids) or any(not isinstance(c, dict) for c in checks.values()):
+            raw = {"checks": None}
+        else:
+            raw = {"checks": [{**checks[key], "id": int(key)} for key in ids]}
+            for item, check in zip(items, raw["checks"]):
+                supports = check.get("evidence_ids")
+                valid_spans = isinstance(supports, list) and bool(supports) and all(
+                    isinstance(sid, str) and sid in support_spans
+                    and support_spans[sid]["excerpt_id"] in item["excerpt_ids"] for sid in supports)
+                check["evidence"] = [support_spans[sid] for sid in supports] if valid_spans else []
+                if check.get("supported") is True and (not valid_spans or check.get("unsupported_claims") != []):
+                    check["supported"] = False
+                    check["reason"] = "Missing, unknown or out-of-scope supporting span, or unresolved unsupported claims."
+    else:
+        raw = llm.complete(VERIFY_PROMPT, data)
     if audit is not None:
         audit["verification"] = raw
+        audit["verification_items"] = items
+        audit["verification_excerpts"] = excerpts
     checks = raw.get("checks")
     if not isinstance(checks, list) or len(checks) != len(items):
         return False

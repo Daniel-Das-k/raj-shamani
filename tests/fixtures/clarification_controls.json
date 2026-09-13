@@ -1,0 +1,8 @@
+{
+  "source": "Targeted follow-up after the frozen wide-15 run; do not combine these results with first-run scores.",
+  "cases": [
+    {"id":301,"question":"Which one is better for me?","expected_status":"needs_clarification"},
+    {"id":302,"question":"Explain why mechanical watches are expensive.","expected_status":"answered"},
+    {"id":303,"question":"Kaunsa mere liye behtar hai?","expected_status":"needs_clarification"}
+  ]
+}

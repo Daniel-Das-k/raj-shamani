@@ -55,22 +55,27 @@ class GroqJSON:
 
 
 class OpenAIJSON:
+    supports_schema = True
     @property
     def model_name(self):
         return os.getenv('OPENAI_CHAT_MODEL', 'gpt-4.1-mini')
 
-    def complete(self, system: str, data: dict) -> dict:
+    def complete(self, system: str, data: dict, *, schema=None) -> dict:
         from openai import OpenAI
+        output_format = {'type': 'json_object'} if schema is None else {
+            'type': 'json_schema', 'name': 'evidence_checks', 'strict': True, 'schema': schema}
         with OpenAI(api_key=require_key('OPENAI_API_KEY'), base_url='https://api.openai.com/v1',
                     max_retries=0, timeout=120) as client:
             response = client.responses.create(
                 model=self.model_name, temperature=0, max_output_tokens=4000,
-                store=False, text={'format': {'type': 'json_object'}},
+                store=False, text={'format': output_format},
                 instructions=system + '\nReturn a valid JSON object only.',
                 input='Input JSON:\n' + json.dumps(data, ensure_ascii=False),
             )
         if response.status != 'completed':
             raise RuntimeError('The answer was incomplete. Please retry with a narrower question.')
+        usage = getattr(response, 'usage', None)
+        self.last_usage = {key: getattr(usage, key, 0) for key in ('input_tokens', 'output_tokens')}
         if any(getattr(part, 'type', None) == 'refusal' for item in response.output
                for part in getattr(item, 'content', [])):
             raise ValueError('The answer provider declined this request.')
