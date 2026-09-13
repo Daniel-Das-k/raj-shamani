@@ -1,19 +1,20 @@
 # Knowledge Retriever
 
-Turn your YouTube videos into a searchable knowledge base. Ask factual questions,
-request explanations, compare ideas, or find where something was said. Answers use
-the indexed videos and include original transcript excerpts, start/end timestamps,
-and links that open the supporting moments. Questions can be in English, Hindi,
-or a mix of both.
+Find useful moments in Raj Shamani's indexed videos. Describe a question or situation
+and get short descriptions of relevant discussions, why each may help, what it does
+not establish, and timestamp links to watch. The reader acts as a guide to the channel's
+content rather than trying to produce a final answer to every question.
 
 For example: "What do the videos say about customer validation?" or "Where is work
-stress discussed?" Clear questions get direct answers without requiring a personal
-problem. Ambiguous questions get a clarification. Unsupported questions get an
-insufficient-evidence response; the system does not fill gaps with outside knowledge.
+stress discussed?" Suggestions distinguish direct discussion from related background.
+When no direct answer is found in the retrieved excerpts, useful related clips may
+still be shown. An unrelated result is not forced into a recommendation. Ambiguous
+questions can receive a clarification. English, Hindi, Tamil and Hinglish are supported,
+with known limits in caption interpretation and generated language quality.
 
 ## Run the knowledge base
 
-The browser now uses **YouTube captions + Supermemory retrieval + OpenAI answers**.
+The browser uses **YouTube captions + Supermemory retrieval + OpenAI video guidance**.
 The default browser is a fixed **Raj Shamani** library. It lists only his already
 indexed videos and lets readers ask across them or select one video. Channel handles,
 video URLs, import actions, pending videos, and background indexing are disabled.
@@ -31,8 +32,9 @@ python -m knowledge serve
 ```
 
 Open http://127.0.0.1:8000 and ask a question. The sidebar shows the indexed video
-catalog, and answers include summaries, expandable original captions, and timestamp links.
-Answers and evidence checks use `OPENAI_CHAT_MODEL=gpt-4.1-mini` by default.
+catalog; recommendations include summaries, relevance explanations, limitations,
+expandable original captions and timestamp links. Descriptions and their checks use
+`OPENAI_CHAT_MODEL=gpt-4.1-mini` by default.
 The OpenAI API account needs its own available quota; Supermemory credits are separate. FFmpeg, Deepgram, and local embeddings are unnecessary
 for this caption-based browser.
 
@@ -59,32 +61,34 @@ This remains a local single-user app, without public hosting or authentication.
 
 The reader combines Supermemory semantic search with keyword search over the existing
 saved captions, using up to two query reformulations and relevance selection. It keeps
-nearby transcript context and preserves canonical timestamp links. The reader extracts
-short statements from each passage independently, without exposing the user's question
-to that reading step. It selects up to three statements and verifies each against its
-own original passage. Python joins the checked statements into one reply and reuses them
-for their own reference summaries. A failed statement is excluded before one permitted
-reselection. A model check can still miss semantic mistakes or incomplete coverage.
+nearby transcript context and preserves canonical timestamp links. Each of up to six
+passages is summarized without the user question. A separate selection step sees the
+question and these fixed summaries, then adds a relevance explanation and scope limit.
+A separate review checks each proposed card against its own original excerpt and can
+downgrade a direct match to related, or reject it. Up to three checked, nonredundant
+moments are shown. There is no generated final-answer paragraph in this workflow.
+A model check can still miss semantic mistakes or overstate how useful a clip is.
 See [the workflow and limits](CHANNEL_IMPORT.md).
 
 The tester's 15 questions are in `tests/fixtures/direct_query_review.json`. Run the
 opt-in paired evaluation with `.venv/bin/python tests/evaluate_direct_queries.py`.
 It uses the configured OpenAI/Supermemory keys and incurs API usage, but never imports
 videos. It compares the baseline at `fe4048a` against the revised pipeline and saves
-full results locally in `data/accuracy-review/paired-results.json`. Existing results
-are reused; archive that file before a new full run. A verifier pass is not an
+full results locally in `data/accuracy-review/video_guide-results.json`. Existing results
+are reused; use a new output filename for a fresh run. A verifier pass is not an
 independent accuracy score; review claims and summaries against their original captions.
 See [the measured results and remaining accuracy gaps](ACCURACY_IMPROVEMENTS.md).
 The [new 15-question review](WIDE_QUERY_REVIEW.md) includes every recorded reply,
 reference links, an assessment of the evidence, and prioritized improvements. Questions
 with missing topics or unnamed options now ask for clarification before retrieval.
-The latest [response improvement report](RESPONSE_IMPROVEMENTS.md) preserves the same
+The earlier [response improvement report](RESPONSE_IMPROVEMENTS.md) preserves the same
 15 questions and their exact before/after replies, reference summaries and timestamp links.
 All development runs, including unsuccessful approaches, remain under `data/accuracy-review/`.
 Normal app questions and replies continue to be saved in `data/responses.sqlite3` and can
 be reopened through Saved responses without making another answer request.
-The default evaluation strategy, `isolated_statements`, matches the reader. The optional
-`isolated_summaries` strategy preserves an alternative experiment and is not used by the app.
+The default evaluation strategy, `video_guide`, matches the reader. `isolated_statements`
+preserves the previous direct-answer workflow; `isolated_summaries` is another experiment.
+See [the video guide review](VIDEO_GUIDE_REVIEW.md) for saved questions and recommendations.
 
 ## Separate local transcription backend
 

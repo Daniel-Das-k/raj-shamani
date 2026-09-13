@@ -75,7 +75,8 @@ class RajLibraryTests(unittest.TestCase):
         self.llm.model_name = 'synthetic-model'
         self.llm.complete.return_value = {'clarifying_question': 'Which options are you comparing?', 'queries': []}
         with patch('knowledge.channel_library.answer_captions') as generate, \
-                patch('knowledge.channel_library.answer_from_evidence') as statements:
+                patch('knowledge.channel_library.answer_from_evidence') as statements, \
+                patch('knowledge.channel_library.recommend_moments') as guide:
             result = self.library.answer('Which one is better for me?')
         self.assertEqual(result['status'], 'needs_clarification')
         self.assertEqual(result['message'], 'Which options are you comparing?')
@@ -83,6 +84,7 @@ class RajLibraryTests(unittest.TestCase):
         self.assertIn('diagnostic_id', result)
         generate.assert_not_called()
         statements.assert_not_called()
+        guide.assert_not_called()
         self.client.search.assert_not_called()
 
     def handler(self):
@@ -92,13 +94,13 @@ class RajLibraryTests(unittest.TestCase):
         handler.send_data = Mock()
         return handler
 
-    def test_reader_uses_isolated_statements_and_records_result(self):
+    def test_reader_uses_video_guide_and_records_result(self):
         self.llm.model_name = 'synthetic-model'
         with patch.object(self.library, 'search', return_value={'excerpts': []}), \
-                patch('knowledge.channel_library.answer_from_evidence', return_value={
+                patch('knowledge.channel_library.recommend_moments', return_value={
                     'status': 'insufficient_evidence', 'points': [], 'message': 'No evidence.'}) as generate:
             result = self.library.answer('Explain a clear topic.')
-        self.assertEqual(self.library.answer_strategy, 'isolated_statements')
+        self.assertEqual(self.library.answer_strategy, 'video_guide')
         self.assertEqual(generate.call_args.kwargs['max_repairs'], 1)
         self.assertIn('diagnostic_id', result)
 

@@ -9,6 +9,7 @@ import time
 
 from .caption_answers import answer_captions
 from .evidence_answers import answer_from_evidence
+from .video_guide import recommend_moments
 from .channel_store import ChannelStore
 from .ingest import read_json, write_json
 from .import_budget import BudgetStop, ImportBudget
@@ -289,7 +290,8 @@ class ChannelLibrary:
                 result = {"status": "needs_clarification", "message": retrieved["clarifying_question"], "points": []}
                 audit["final_status"] = "needs_clarification"
             else:
-                generate = answer_from_evidence if getattr(self, 'answer_strategy', '') == 'isolated_statements' else answer_captions
+                generate = {'video_guide': recommend_moments, 'isolated_statements': answer_from_evidence}.get(
+                    getattr(self, 'answer_strategy', ''), answer_captions)
                 result = generate(question, citations, sources, self.llm, audit=audit, whole_passages=True, **options)
             if result["status"] == "invalid_evidence" or getattr(self, "read_only", False):
                 # Keep every reader attempt for evaluation, never display rejected drafts.

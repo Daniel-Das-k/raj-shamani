@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
 
-from knowledge.caption_retrieval import retrieve, context_citation, source_citation
+from knowledge.caption_retrieval import retrieve, context_citation, source_citation, GUIDE_QUERY_PROMPT, GUIDE_RANK_PROMPT
 from knowledge.supermemory_captions import caption_source
 
 
@@ -33,6 +33,24 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(cite['quote'], ' '.join(s['text'] for s in self.source['segments']))
         self.assertEqual((cite['start'], cite['end']), (0, 6))
         self.assertTrue(cite['url'].endswith('&t=0s'))
+
+    def test_guide_retrieval_accepts_useful_background_without_a_direct_answer(self):
+        self.library.answer_strategy = 'video_guide'
+        result = retrieve(self.library, 'Will recall practice guarantee my exam score?')
+        self.assertTrue(result['excerpts'])
+        self.assertEqual(self.llm.complete.call_args_list[0].args[0], GUIDE_QUERY_PROMPT)
+        self.assertEqual(self.llm.complete.call_args_list[1].args[0], GUIDE_RANK_PROMPT)
+
+    def test_guide_does_not_ask_for_treatment_details(self):
+        self.library.answer_strategy = 'video_guide'
+        self.llm.complete.side_effect = [
+            {'clarifying_question': 'Which medication should we use for the prescription?', 'queries': []},
+            {'selected': [{'id': 'R0', 'reason': 'Related memory discussion'}]}]
+        result = retrieve(self.library, 'Can memory practice replace medication?')
+        self.assertNotIn('clarifying_question', result)
+        self.assertIn('rejected_clarification', result['retrieval'])
+        self.assertTrue(result['excerpts'])
+        self.client.search.assert_called_once()
 
     def test_missing_options_asks_clarification_before_searching(self):
         self.llm.complete.side_effect = [{'clarifying_question': 'Which options are you comparing?', 'queries': []}]

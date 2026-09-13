@@ -1,8 +1,19 @@
-# Selected reader version
+# Selected reader version: video guide
 
-Keep `RajShamaniLibrary.answer_strategy = 'isolated_statements'` as the reader default.
-This is the source-by-source version selected on 13 September 2026. The app and live
-evaluation default both use it. No model change is part of this selection.
+The current default is `RajShamaniLibrary.answer_strategy = 'video_guide'`, following
+the user's request to connect people to useful channel content rather than force a
+final answer. Cards show what a moment discusses, why it may help, its limitations,
+and an original timestamp link. Direct and related discussions are distinguished;
+no useful match is an acceptable result. The former direct-answer code remains
+available as `isolated_statements`, and its committed checkpoint is `f3e6412`.
+
+See [the video-guide evaluation](VIDEO_GUIDE_REVIEW.md) for the new results.
+
+## Previous selection and preserved checkpoint
+
+The previous reader default was `RajShamaniLibrary.answer_strategy = 'isolated_statements'`.
+This is the source-by-source version selected earlier on 13 September 2026. It remains
+available for comparisons. The guide change does not change the configured model.
 
 Each passage is read separately, without the user's question. The app selects up to
 three statements, checks each against its own original passage, and combines the

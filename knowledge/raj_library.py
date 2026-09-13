@@ -9,7 +9,7 @@ CHANNEL_ID = "UCzwCEE_PchiBULMnAJqhGVg"
 class RajShamaniLibrary(ChannelLibrary):
     read_only = True
     answer_repairs = 1
-    answer_strategy = 'isolated_statements'
+    answer_strategy = 'video_guide'
 
     def search(self, question, source_id=None):
         from .caption_retrieval import retrieve

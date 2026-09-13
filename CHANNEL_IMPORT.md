@@ -41,13 +41,14 @@ every six hours while the process is running. There is no background OS schedule
 - OpenAI (`gpt-4.1-mini` by default) generates an answer from retrieved evidence; a second model call checks support.
   The browser cites complete retrieved passages to retain nearby qualifications.
 
-The Raj Shamani reader reads each passage independently, without the user question,
-then selects up to three short statements. Each selected statement is verified against
-only its own original excerpt. The checked statements form one reply and the summaries
-of their own references. Failed statements are excluded before one permitted reselection.
-Questions, final replies, rejected selections and readings are retained locally for review.
-See [the latest before/after replies](RESPONSE_IMPROVEMENTS.md). The evaluation default
-`isolated_statements` matches the app; `isolated_summaries` is an alternative experiment.
+The Raj Shamani reader now recommends useful moments rather than synthesizing a final
+answer. Each excerpt is summarized without the question. A separate bridge step
+selects immutable summaries and explains why each connects to the question and what
+it does not establish. A separate review checks all three fields and the direct/
+related classification. Up to three checked moments are displayed; unrelated content
+is not forced into a suggestion. Questions, cards and review decisions are retained
+locally. The evaluation default `video_guide` matches the app; `isolated_statements`
+preserves the previous workflow. See [the guide review](VIDEO_GUIDE_REVIEW.md).
 
 This is RAG. The application does not create or query a graph database. It retains
 caption text and references; it does not archive YouTube media. Back up the entire
@@ -138,6 +139,13 @@ authentication, per-user isolation, managed worker execution, operational monito
 and a larger quality/load evaluation. The worker lock currently requires macOS/Linux.
 
 ## Saved responses
+
+The current guide records its introductory message, recommended moments, summaries,
+relevance explanations, limitations, and original citations. Saved recommendations
+reopen without another model call. The following describes the earlier answer workflow;
+previous recordings remain readable with their original wording.
+
+### Previous answer workflow
 
 New answers address the reader directly in short, grammatically complete paragraphs,
 without routine narration such as “the episode says.” Predictions stay conditional and

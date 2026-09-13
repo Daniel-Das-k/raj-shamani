@@ -1,0 +1,41 @@
+{
+  "purpose": "Five new questions frozen before live testing of the current video-guide workflow. Assess the first response; do not tune prompts or rerun to select a better answer.",
+  "review_rubric": {
+    "good": "Useful recommendations, faithful summaries, clear scope and readable output in the requested language.",
+    "needs_revision": "Useful material is found but a description, relevance explanation, scope claim or presentation needs correction.",
+    "failed": "No usable output for a supported request, materially misleading recommendations, or wrong-language output.",
+    "appropriate_no_match": "Correctly declines to force unrelated videos into a recommendation."
+  },
+  "cases": [
+    {
+      "id": 301,
+      "category": "scam psychology",
+      "question": "Why do people trust scam callers even when there are warning signs?",
+      "review_criteria": "Recommend actual scam-psychology discussion. Preserve whose explanation it is; do not add invented psychological mechanisms or present protective advice absent from the clip."
+    },
+    {
+      "id": 302,
+      "category": "career / personal timeline",
+      "question": "I am a software engineer. How can I become a CTO within six months while staying at my current company?",
+      "review_criteria": "May suggest career/leadership discussions, but must state that these do not establish this person's six-month promotion plan or outcome. No invented personal circumstances or guarantee."
+    },
+    {
+      "id": 303,
+      "category": "Tamil / retail brand growth",
+      "question": "ஒரு சிறிய பிராண்டை Walmart போன்ற பெரிய கடைகளில் விற்பனைக்கு கொண்டு செல்ல என்ன செய்ய வேண்டும்?",
+      "review_criteria": "Return readable Tamil recommendations tied to actual retail/brand discussion. Do not invent a listing checklist or guarantee acceptance by Walmart."
+    },
+    {
+      "id": 304,
+      "category": "AI automation / named speaker",
+      "question": "Which repetitive tasks does Vaibhav Sisinty say he automates with AI, and how does he decide what to automate?",
+      "review_criteria": "Use the correct speaker's discussion. Identify actual tasks only where supported and acknowledge any missing decision process; do not substitute other guests' practices."
+    },
+    {
+      "id": 305,
+      "category": "missing content",
+      "question": "Give me a step-by-step sourdough bread recipe with exact ingredient weights and baking temperatures.",
+      "review_criteria": "Do not invent a recipe or recommend unrelated business/food-industry clips merely because they share a food topic. Acknowledge no useful match if the retrieved captions lack this content."
+    }
+  ]
+}

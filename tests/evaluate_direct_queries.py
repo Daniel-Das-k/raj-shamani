@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from knowledge.channel_library import ChannelLibrary
 from knowledge.caption_answers import answer_captions
 from knowledge.evidence_answers import answer_from_evidence
+from knowledge.video_guide import recommend_moments
 from knowledge.providers import OpenAIJSON
 from knowledge.raj_library import RajShamaniLibrary
 from knowledge.server import load_settings, safe_error
@@ -26,9 +27,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--case-ids', type=int, nargs='+')
     parser.add_argument('--fixture', type=Path, default=Path('tests/fixtures/direct_query_review.json'))
-    parser.add_argument('--output', type=Path, default=Path('data/accuracy-review/paired-results.json'))
+    parser.add_argument('--output', type=Path)
     parser.add_argument('--improved-only', action='store_true')
-    parser.add_argument('--answer-strategy', choices=['legacy', 'isolated_statements', 'isolated_summaries'], default='isolated_statements')
+    parser.add_argument('--answer-strategy', choices=['legacy', 'isolated_statements', 'isolated_summaries', 'video_guide'], default=RajShamaniLibrary.answer_strategy)
     parser.add_argument('--replay-results', type=Path, help='Reuse saved retrieval for unchanged questions; no Supermemory requests.')
     args = parser.parse_args()
     load_settings()
@@ -49,23 +50,27 @@ def main():
             self.calls = []
         def complete(self, system, data, **kwargs):
             result = super().complete(system, data, **kwargs)
-            kind = ('verification' if 'items' in data else 'reference_summary' if 'reference_excerpt' in data else 'source_reading' if 'passage' in data
+            kind = ('guide_review' if 'recommendation' in data else 'guide_selection' if 'summaries' in data else 'guide_description' if 'excerpt' in data
+                    else 'verification' if 'items' in data else 'reference_summary' if 'reference_excerpt' in data else 'source_reading' if 'passage' in data
                     else 'statement_selection' if 'rejected_ids' in data else 'repair' if 'previous_draft' in data
-                    else 'ranking' if 'Select evidence' in system else 'planning' if 'search queries' in system else 'generation')
+                    else 'ranking' if 'Select evidence' in system or 'Select up to SIX' in system else 'planning' if 'search queries' in system or 'Plan a search' in system else 'generation')
             self.calls.append({'kind': kind, **self.last_usage})
             return result
     llm = MeteredLLM()
     library = RajShamaniLibrary(Path('data'), llm=llm)
+    library.answer_strategy = args.answer_strategy
     cases = json.loads(args.fixture.read_text())['cases']
     replay = {c['id']: c for c in json.loads(args.replay_results.read_text())['cases']} if args.replay_results else {}
-    path = args.output
+    path = args.output or root / f'{args.answer_strategy}-results.json'
     path.parent.mkdir(parents=True, exist_ok=True)
     report = json.loads(path.read_text()) if path.exists() else {'model': llm.model_name, 'baseline_commit': 'fe4048a', 'cases': []}
+    if path.exists() and report.get('run_metadata', {}).get('answer_strategy') != args.answer_strategy:
+        raise SystemExit('Existing results use a different strategy. Choose a new output filename.')
     report.setdefault('run_metadata', {
         'started_at': datetime.now(timezone.utc).isoformat(), 'fixture': str(args.fixture),
         'answer_strategy': args.answer_strategy, 'replayed_retrieval_from': str(args.replay_results) if args.replay_results else None,
         'code_sha256': {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in [
-            'knowledge/caption_retrieval.py', 'knowledge/caption_answers.py', 'knowledge/evidence_answers.py', 'knowledge/reference_summaries.py', 'knowledge/answer_language.py', 'knowledge/answers.py', 'knowledge/providers.py']},
+            'knowledge/caption_retrieval.py', 'knowledge/caption_answers.py', 'knowledge/evidence_answers.py', 'knowledge/video_guide.py', 'knowledge/reference_summaries.py', 'knowledge/answer_language.py', 'knowledge/answers.py', 'knowledge/providers.py']},
         'ready_sources': [{'id': v['id'], 'revision': v['revision']} for v in library.ready_videos()],
     })
     def save():
@@ -79,6 +84,8 @@ def main():
         if args.case_ids and case['id'] not in args.case_ids:
             continue
         row = next((r for r in report['cases'] if r['id'] == case['id']), None)
+        if row is not None and (row['question'] != case['question'] or row.get('source_id') != case.get('source_id')):
+            raise SystemExit('Existing results use a different question or scope. Choose a new output filename.')
         if row is None:
             row = {**case}
             report['cases'].append(row)
@@ -103,7 +110,8 @@ def main():
                 for cite in citations:
                     video = library.store.rows('SELECT revision FROM videos WHERE id=?', (cite['source_id'],))[0]
                     sources[cite['source_id']] = json.loads((library.directory / f"{cite['source_id']}-{video['revision'][:12]}.json").read_text())
-                fn = baseline.answer_captions if mode == 'baseline' else answer_from_evidence if args.answer_strategy == 'isolated_statements' else answer_captions
+                fn = baseline.answer_captions if mode == 'baseline' else {'video_guide': recommend_moments,
+                     'isolated_statements': answer_from_evidence}.get(args.answer_strategy, answer_captions)
                 kwargs = {'max_repairs': 1} if mode == 'improved' else {}
                 if mode == 'improved' and args.answer_strategy == 'isolated_summaries':
                     kwargs['isolate_summaries'] = True

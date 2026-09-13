@@ -48,7 +48,7 @@ function updateControls() {
   $('#process').disabled = Boolean(currentStatus?.job?.running) || !currentStatus?.credentials.transcription || !currentStatus?.links_count;
   $('#add-link').disabled = Boolean(currentStatus?.job?.running) || !currentStatus?.credentials.transcription;
   if (channels) $('#add-link').disabled = !currentStatus.credentials.indexing;
-  $('#ask-button').firstChild.textContent = requesting ? 'Finding answers… ' : priorSituation ? 'Continue ' : 'Ask library ';
+  $('#ask-button').firstChild.textContent = requesting ? 'Finding moments… ' : priorSituation ? 'Continue ' : 'Find video moments ';
   $('#process').textContent = currentStatus?.job?.running ? 'Processing videos…' : ready ? 'Process / refresh videos' : 'Process videos';
 }
 
@@ -144,7 +144,7 @@ function playExcerpt(source) {
   $('#player-dialog').showModal();
 }
 
-function evidenceNode(source, number) {
+function evidenceNode(source, number, guide = null) {
   const article = element('section', 'evidence');
   const heading = element('div', 'evidence-heading');
   heading.append(element('span', 'evidence-title', number ? `${number}. ${source.title}` : source.title));
@@ -154,8 +154,14 @@ function evidenceNode(source, number) {
   time.rel = 'noopener noreferrer';
   heading.append(time);
   article.append(heading);
-  if (source.summary) {
-    article.append(element('p', 'excerpt-label', 'Summary'), element('p', 'reference-summary', source.summary));
+  if (guide) article.append(element('p', 'excerpt-label', guide.match === 'direct' ? 'Relevant discussion' : 'Related discussion · partial match'));
+  const summary = guide?.summary || source.summary;
+  if (summary) {
+    article.append(element('p', 'excerpt-label', guide ? 'What this moment covers' : 'Summary'), element('p', 'reference-summary', summary));
+  }
+  if (guide) {
+    article.append(element('p', 'excerpt-label', 'Why it may help'), element('p', 'reference-summary', guide.why_relevant.replace(/^P\d+\b/, 'This moment').replace(/\bP\d+\b/g, 'another retrieved moment')));
+    if (guide.limitation) article.append(element('p', 'excerpt-label', 'Limits of this excerpt'), element('p', 'reference-summary', guide.limitation));
   }
   const original = element('details', 'original-transcript');
   const toggle = element('summary', '', 'Show original excerpt');
@@ -190,7 +196,22 @@ function evidenceNode(source, number) {
 function showAnswer(answer) {
   const output = $('#answer');
   output.replaceChildren();
-  if (!answer.points.length) {
+  if (Array.isArray(answer.recommendations)) {
+    output.append(element('p', 'answer-note', answer.message));
+    if (answer.recommendations.length) {
+      const moments = element('section', 'answer-references');
+      moments.append(element('h2', '', 'Suggested video moments'));
+      for (const [index, guide] of answer.recommendations.entries()) {
+        const node = evidenceNode(guide.citation, index + 1, guide);
+        node.id = `answer-reference-${index + 1}`;
+        moments.append(node);
+      }
+      output.append(moments);
+      output.append(element('p', 'answer-warning', 'Descriptions summarize these excerpts. Open a moment to hear the discussion in context.'));
+    }
+    return;
+  }
+  if (!answer.points?.length) {
     output.append(element('p', 'answer-note', answer.message));
     return;
   }
@@ -242,8 +263,8 @@ $('#question-form').addEventListener('submit', async (event) => {
   $('#examples').hidden = true;
   $('#reset').hidden = false;
   $('#answer').replaceChildren();
-  requestMessage('Searching your videos and checking supporting excerpts…');
-  const slow = setTimeout(() => requestMessage('Still checking the evidence. Answer services may take longer when busy.'), 20000);
+  requestMessage('Finding useful video moments and checking their descriptions…');
+  const slow = setTimeout(() => requestMessage('Still checking which moments are useful for your question…'), 20000);
   try {
     const payload = {question};
     if ($('#video-scope').value) payload.source_id = $('#video-scope').value;
@@ -385,8 +406,8 @@ function showChannelLibrary(status) {
   if (!requesting) { scope.replaceChildren(...options); scope.value = catalog.some(s => s.id === previous) ? previous : ''; }
   $('#ingest-note').textContent = !status.worker_running ? 'The import worker is stopped. Restart the app to resume.' : 'Imports resume after a restart. Already indexed videos are kept.';
   if (status.read_only) {
-    $('#empty-state h2').textContent = counts.ready ? 'Ask about the indexed conversations' : 'The video library is not ready yet';
-    $('#empty-state p').textContent = counts.ready ? 'Explore ideas from Raj Shamani’s conversations. Answers include brief reference summaries and links to the supporting moments.' : 'Questions will be available once the library has indexed videos.';
+    $('#empty-state h2').textContent = counts.ready ? 'Find a useful place to start' : 'The video library is not ready yet';
+    $('#empty-state p').textContent = counts.ready ? 'Explore Raj Shamani’s conversations through relevant clips, reasons to watch, and clear limits when a direct answer is missing.' : 'Questions will be available once the library has indexed videos.';
   }
 }
 
@@ -449,7 +470,7 @@ async function loadResponseHistory() {
     $('#history-count').textContent = `(${history.total})`;
     $('#history-message').textContent = history.total ? '' : 'No responses recorded yet. Your next question will be saved here.';
     const list = document.createDocumentFragment();
-    const labels = {answered: 'Answered', error: 'Request failed', insufficient_evidence: 'Insufficient evidence', invalid_evidence: 'Evidence check failed', needs_clarification: 'Needs clarification'};
+    const labels = {recommendations: 'Suggested moments', answered: 'Answered', error: 'Request failed', insufficient_evidence: 'No useful match', invalid_evidence: 'Evidence check failed', needs_clarification: 'Needs clarification'};
     for (const item of history.items) {
       const row = element('article', 'saved-response');
       row.append(element('p', '', item.question || 'Empty question'));

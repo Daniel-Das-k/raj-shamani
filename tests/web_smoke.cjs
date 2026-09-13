@@ -110,6 +110,55 @@ test('clarification carries the original question into the answer request', asyn
   assert.equal($('#question').value, '');
 });
 
+test('video guide shows relevance and limits without manufacturing an answer paragraph', async () => {
+  const {context, $} = await app();
+  const guide = {match: 'related', summary: 'This moment discusses customer feedback.',
+    why_relevant: 'It may help you explore demand.', limitation: 'It does not predict your sales.', citation};
+  context.showAnswer({status: 'recommendations', coverage: 'related', message: 'Related background, not a direct answer.',
+    points: [], recommendations: [guide]});
+  assert.equal($('#answer').children[0].textContent, 'Related background, not a direct answer.');
+  const section = $('#answer').children[1];
+  assert.equal(section.children[0].textContent, 'Suggested video moments');
+  const card = section.children[1];
+  assert.equal(card.children[0].children[1].href, citation.url);
+  assert.ok(card.children.some(n => n.textContent === 'Related discussion · partial match'));
+  for (const text of [guide.summary, guide.why_relevant, guide.limitation]) {
+    assert.ok(card.children.some(n => n.textContent === text));
+  }
+  const original = card.children.find(n => n.tag === 'details');
+  assert.ok(!original.open);
+  assert.equal(original.children[1].textContent, citation.quote);
+  assert.ok(!$('#answer').children.some(n => n.className === 'answer-reply'));
+  context.showAnswer({status: 'insufficient_evidence', message: 'No useful match.', points: [], recommendations: []});
+  assert.equal($('#answer').children.length, 1);
+});
+
+test('internal passage IDs are not exposed in a recommendation explanation', async () => {
+  const {context, $} = await app();
+  context.showAnswer({status: 'recommendations', message: 'Useful moments.', points: [], recommendations: [{
+    match: 'direct', summary: 'A complete summary.', why_relevant: 'P2 complements P1 with an example.', limitation: '', citation,
+  }]});
+  const card = $('#answer').children[1].children[1];
+  assert.ok(card.children.some(n => n.textContent === 'This moment complements another retrieved moment with an example.'));
+});
+
+test('saved video recommendations reopen with their explanation and no new generation', async () => {
+  const recommendation = {match: 'direct', summary: 'This moment covers demand testing.',
+    why_relevant: 'It discusses your topic.', limitation: '', citation};
+  const response = {status: 'recommendations', message: 'Useful moments.', points: [], recommendations: [recommendation]};
+  const record = {question: 'Find demand-testing discussions.', model: 'test', elapsed_seconds: 2,
+    created_at: '2026-09-13T00:00:00Z', response};
+  const {$, requests} = await app([record], null, {
+    items: [{id: 'a'.repeat(32), question: record.question, status: 'recommendations', created_at: record.created_at}], total: 1});
+  await new Promise(setImmediate);
+  const row = $('#history-list').children[0].children[0];
+  assert.match(row.children[1].textContent, /Suggested moments/);
+  await row.children[2].children[0].listeners.click();
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /^\/api\/responses\//);
+  assert.equal($('#answer').children[1].children[0].textContent, 'Suggested video moments');
+});
+
 test('channel discovery requires an explicit import and uses channel identity', async () => {
   const status = {backend: 'supermemory', channels: [], sources: [], counts: {ready: 3},
     total: 3, credentials: {indexing: true, answers: true}, worker_running: true};

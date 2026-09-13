@@ -1,0 +1,151 @@
+import copy
+import unittest
+
+from knowledge.caption_retrieval import source_citation
+from knowledge.supermemory_captions import caption_source
+from knowledge.video_guide import GUIDE_PROMPT, SUMMARY_PROMPT, recommend_moments
+
+
+class GuideLLM:
+    supports_schema = True
+
+    def __init__(self):
+        self.calls = []
+        self.card = {'match': 'related', 'summary': 'The discussion covers gathering customer feedback.',
+                     'why_relevant': 'This may help you explore customer demand.',
+                     'limitation': 'It does not establish whether your particular business will succeed.'}
+        self.review = {'match': 'related', 'summary_supported': True, 'relevance_supported': True,
+                       'limitation_supported': True, 'support_ids': ['U0'], 'reason': 'Useful background only.'}
+
+    def complete(self, system, data, *, schema):
+        self.calls.append((system, data, schema))
+        if system == SUMMARY_PROMPT:
+            return {'summary': self.card['summary'], 'support_ids': ['U0'] if self.card['summary'] else []}
+        if system == GUIDE_PROMPT:
+            return {'selected': [{**{k: v for k, v in self.card.items() if k != 'summary'},
+                                  'passage_id': row['id']} for row in data['summaries']]
+                    if self.card['match'] != 'none' else []}
+        return copy.deepcopy(self.review)
+
+
+class VideoGuideTests(unittest.TestCase):
+    def setUp(self):
+        self.source = caption_source({'id': 'abcdefghijk', 'title': 'Customer feedback'}, {'events': [
+            {'tStartMs': 10000, 'dDurationMs': 5000, 'segs': [{'utf8': 'Talk to customers to learn what they need.'}]}]}, 'en')
+        self.sources = {self.source['id']: self.source}
+        self.citations = [source_citation(self.source, 0, 0)]
+        self.llm = GuideLLM()
+
+    def run_guide(self, **kwargs):
+        return recommend_moments('Will my business succeed?', self.citations, self.sources, self.llm, **kwargs)
+
+    def test_related_content_is_returned_without_inventing_a_final_answer(self):
+        result = self.run_guide()
+        self.assertEqual(result['status'], 'recommendations')
+        self.assertEqual(result['coverage'], 'related')
+        self.assertEqual(result['points'], [])
+        self.assertIn('did not find a direct answer in the retrieved excerpts', result['message'])
+        card = result['recommendations'][0]
+        self.assertEqual(card['citation'], self.citations[0])
+        self.assertEqual(card['limitation'], self.llm.card['limitation'])
+        for prompt, data, _ in self.llm.calls:
+            if prompt == GUIDE_PROMPT:
+                self.assertNotIn('excerpt', data)
+                self.assertEqual(data['summaries'][0]['summary'], card['summary'])
+                continue
+            if prompt == SUMMARY_PROMPT:
+                self.assertNotIn('question', data)
+            self.assertEqual(len(data['excerpt']['units']), 1)
+            self.assertEqual(data['excerpt']['units'][0]['text'], self.citations[0]['quote'])
+            self.assertNotIn('excerpts', data)
+
+    def test_direct_claim_can_be_downgraded_but_related_cannot_be_upgraded(self):
+        self.llm.card.update(match='direct', limitation='')
+        result = self.run_guide()
+        self.assertEqual(result['coverage'], 'related')
+        self.assertTrue(result['recommendations'][0]['limitation'])
+        self.llm.card.update(match='related', limitation='Background only.')
+        self.llm.review['match'] = 'direct'
+        self.assertEqual(self.run_guide()['coverage'], 'related')
+
+    def test_direct_content_is_a_recommendation_not_advice(self):
+        self.llm.card.update(match='direct', limitation='')
+        self.llm.review['match'] = 'direct'
+        result = self.run_guide()
+        self.assertEqual(result['status'], 'recommendations')
+        self.assertEqual(result['coverage'], 'direct')
+        self.assertEqual(result['points'], [])
+
+    def test_no_useful_match_does_not_force_recommendations(self):
+        self.llm.card.update(match='none', summary='', why_relevant='', limitation='')
+        result = self.run_guide()
+        self.assertEqual(result['status'], 'insufficient_evidence')
+        self.assertEqual(result['recommendations'], [])
+        self.assertEqual(len(self.llm.calls), 1)
+
+    def test_reviewer_can_reject_relevance_even_when_summary_is_faithful(self):
+        self.llm.review['match'] = 'none'
+        self.assertEqual(self.run_guide()['status'], 'insufficient_evidence')
+
+    def test_all_three_content_checks_and_real_support_ids_are_required(self):
+        for field, value in [('summary_supported', False), ('relevance_supported', False),
+                             ('limitation_supported', False), ('support_ids', ['OTHER']), ('support_ids', [])]:
+            with self.subTest(field=field, value=value):
+                self.llm = GuideLLM()
+                self.llm.review[field] = value
+                result = self.run_guide()
+                self.assertEqual(result['status'], 'invalid_evidence')
+                self.assertEqual(result['recommendations'], [])
+
+    def test_duplicate_overlapping_moments_are_not_shown_twice(self):
+        self.citations *= 2
+        result = self.run_guide()
+        self.assertEqual(len(result['recommendations']), 1)
+        self.assertEqual(len(self.llm.calls), 4)  # Two source readings, one selection, one check.
+
+    def test_altered_source_or_forged_link_is_rejected_before_model_calls(self):
+        for field, value in [('quote', 'An invented guarantee.'), ('url', 'https://example.com/fake'),
+                             ('human_verified', True), ('title', 'Fake title')]:
+            with self.subTest(field=field):
+                cites = copy.deepcopy(self.citations)
+                cites[0][field] = value
+                result = recommend_moments('Explain.', cites, self.sources, self.llm)
+                self.assertEqual(result['status'], 'invalid_evidence')
+                self.assertEqual(self.llm.calls, [])
+
+    def test_related_recommendation_requires_a_limit_and_requested_language(self):
+        self.llm.card['limitation'] = ''
+        self.assertEqual(self.run_guide()['status'], 'invalid_evidence')
+        self.llm = GuideLLM()
+        result = recommend_moments('எந்தப் பகுதி உதவியாக இருக்கும்?', self.citations, self.sources, self.llm)
+        self.assertEqual(result['status'], 'invalid_evidence')
+
+    def test_incomplete_summary_is_withheld_before_selection(self):
+        self.llm.card['summary'] = 'The discussion ends mid'
+        self.assertEqual(self.run_guide()['status'], 'invalid_evidence')
+        self.assertEqual(len(self.llm.calls), 1)
+
+    def test_a_stated_gap_prevents_a_direct_match_label(self):
+        self.llm.card['match'] = 'direct'
+        self.llm.review['match'] = 'direct'
+        self.assertEqual(self.run_guide()['coverage'], 'related')
+
+    def test_bridge_cannot_rewrite_the_source_summary(self):
+        original = self.llm.complete
+        def complete(prompt, data, *, schema):
+            result = original(prompt, data, schema=schema)
+            if prompt == GUIDE_PROMPT:
+                result['selected'][0]['summary'] = 'Invented rewrite.'
+            return result
+        self.llm.complete = complete
+        result = self.run_guide()
+        self.assertEqual(result['recommendations'][0]['summary'], self.llm.card['summary'])
+
+    def test_empty_retrieval_needs_no_model_calls(self):
+        result = recommend_moments('Explain.', [], {}, self.llm)
+        self.assertEqual(result['status'], 'insufficient_evidence')
+        self.assertEqual(self.llm.calls, [])
+
+
+if __name__ == '__main__':
+    unittest.main()
