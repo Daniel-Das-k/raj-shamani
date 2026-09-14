@@ -41,6 +41,21 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(self.llm.complete.call_args_list[0].args[0], GUIDE_QUERY_PROMPT)
         self.assertEqual(self.llm.complete.call_args_list[1].args[0], GUIDE_RANK_PROMPT)
 
+    def test_guide_keeps_nearest_verified_candidates_when_ranker_finds_no_answer(self):
+        self.library.answer_strategy = 'video_guide'
+        self.llm.complete.side_effect = [{'queries': ['memory']}, {'selected': []}]
+        result = retrieve(self.library, 'Give me a sourdough recipe.')
+        self.assertTrue(result['excerpts'])
+        self.assertIn('closest_fallback', result['retrieval'])
+        self.assertEqual(result['excerpts'][0]['quote'], ' '.join(s['text'] for s in self.source['segments']))
+
+    def test_guide_cannot_fabricate_a_closest_result_without_any_search_candidates(self):
+        self.library.answer_strategy = 'video_guide'
+        self.llm.complete.side_effect = [{'queries': []}]
+        result = retrieve(self.library, 'sourdough bread')
+        self.assertEqual(result['excerpts'], [])
+        self.assertEqual(self.llm.complete.call_count, 1)
+
     def test_guide_does_not_ask_for_treatment_details(self):
         self.library.answer_strategy = 'video_guide'
         self.llm.complete.side_effect = [

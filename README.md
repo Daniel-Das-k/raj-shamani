@@ -9,7 +9,11 @@ are not filled in from general model knowledge.
 For example: "What do the videos say about customer validation?" or "Where is work
 stress discussed?" Suggestions distinguish direct discussion from related background.
 When no direct answer is found in the retrieved excerpts, useful related clips may
-still be shown. An unrelated result is not forced into a recommendation. Ambiguous
+still be shown. If no useful related answer passes review, the reader returns the
+closest verified excerpt summary with a clear notice that a direct answer was not
+found and a specific explanation of what the excerpt does not provide. This closest
+content is background, even when its connection is weak; missing answer details are
+never invented. Ambiguous
 questions can receive a clarification. English, Hindi, Tamil and Hinglish are supported,
 with known limits in caption interpretation and generated language quality.
 
@@ -73,9 +77,24 @@ can be removed while keeping independently checked advice. A separate scope chec
 validates what the reply says the retrieved passages do not establish. Partial replies
 name the missing part. One repair is allowed; if synthesis cannot be verified or its
 provider fails, the checked moments remain available without an unchecked answer.
+When no ordinary card passes, a fallback ranks the available summaries by proximity
+to the question and independently checks up to three candidates until one passes.
+Its checked summary and missing-information statement form the reply, with
+`coverage` and `reply_coverage` set to `closest` and a timestamp citation. The same
+fallback reuses a checked related card when the reply writer finds no substantive
+answer to synthesize. Search
+includes a broader subject query and retains nearest candidates when ranking finds
+no direct answer. Empty retrieval or failed source checks can still prevent a reply;
+the fallback does not establish that the entire index was exhaustively checked.
 See [the consolidated reply check](CONSOLIDATED_REPLY_REVIEW.md).
 A model check can still miss semantic mistakes or overstate how useful a clip is.
 See [the workflow and limits](CHANNEL_IMPORT.md).
+
+The [15-question English system check](ENGLISH_15_QUERY_SYSTEM_CHECK.md) records the
+current closest-content workflow: 11 substantive replies, 3 closest-content replies,
+and 1 clarification, with no request errors. All displayed citations matched saved
+captions, but assistant review found six responses needing quality revisions. The
+report includes every exact reply, reference, limitation, and reproduction command.
 
 The tester's 15 questions are in `tests/fixtures/direct_query_review.json`. Run the
 opt-in paired evaluation with `.venv/bin/python tests/evaluate_direct_queries.py`.

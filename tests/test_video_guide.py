@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from knowledge.caption_retrieval import source_citation
 from knowledge.supermemory_captions import caption_source
-from knowledge.video_guide import GUIDE_PROMPT, SUMMARY_PROMPT, recommend_moments
+from knowledge.video_guide import CLOSEST_PROMPT, CLOSEST_REVIEW_PROMPT, GUIDE_PROMPT, SUMMARY_PROMPT, recommend_moments
 
 
 class GuideLLM:
@@ -17,6 +17,8 @@ class GuideLLM:
                      'limitation': 'It does not establish whether your particular business will succeed.'}
         self.review = {'match': 'related', 'summary_supported': True, 'relevance_supported': True,
                        'limitation_supported': True, 'support_ids': ['U0'], 'reason': 'Useful background only.'}
+        self.closest = {'why_relevant': 'This is only the nearest available search result.',
+                        'limitation': 'This excerpt does not provide the requested answer.'}
 
     def complete(self, system, data, *, schema):
         self.calls.append((system, data, schema))
@@ -26,12 +28,14 @@ class GuideLLM:
             return {'selected': [{**{k: v for k, v in self.card.items() if k != 'summary'},
                                   'passage_id': row['id']} for row in data['summaries']]
                     if self.card['match'] != 'none' else []}
+        if system == CLOSEST_PROMPT:
+            return {'selected': [{'passage_id': row['id'], **self.closest} for row in data['summaries'][:3]]}
         return copy.deepcopy(self.review)
 
 
 class VideoGuideTests(unittest.TestCase):
     def setUp(self):
-        self.reply_patch = patch('knowledge.video_guide.compose_reply', return_value={'points': [], 'reply_status': 'insufficient_evidence'})
+        self.reply_patch = patch('knowledge.video_guide.compose_reply', return_value={'points': [], 'reply_status': 'provider_error'})
         self.reply = self.reply_patch.start()
         self.addCleanup(self.reply_patch.stop)
         self.source = caption_source({'id': 'abcdefghijk', 'title': 'Customer feedback'}, {'events': [
@@ -87,9 +91,63 @@ class VideoGuideTests(unittest.TestCase):
         self.assertEqual(result['recommendations'], [])
         self.assertEqual(len(self.llm.calls), 1)
 
-    def test_reviewer_can_reject_relevance_even_when_summary_is_faithful(self):
+    def test_rejected_topic_match_returns_a_checked_closest_summary_and_explicit_gap(self):
         self.llm.review['match'] = 'none'
-        self.assertEqual(self.run_guide()['status'], 'insufficient_evidence')
+        result = self.run_guide()
+        self.assertEqual(result['status'], 'answered')
+        self.assertEqual(result['coverage'], 'closest')
+        self.assertEqual(result['reply_coverage'], 'closest')
+        self.assertIn('did not find a direct answer', result['points'][0]['text'])
+        self.assertIn(self.llm.card['summary'], result['points'][0]['text'])
+        self.assertTrue(result['points'][0]['text'].endswith(self.llm.closest['limitation']))
+        self.assertEqual(result['points'][0]['citations'], self.citations)
+        self.assertEqual(result['recommendations'][0]['match'], 'closest')
+        self.reply.assert_not_called()
+
+    def test_recipe_gets_closest_content_without_invented_cooking_instructions(self):
+        self.llm.card['match'] = 'none'  # No ordinary selection, but a readable source remains.
+        self.llm.closest['limitation'] = 'This customer-feedback excerpt contains no recipe, ingredient weights or baking temperatures.'
+        audit = {}
+        result = recommend_moments('Give me a sourdough recipe with weights and baking temperatures.',
+                                  self.citations, self.sources, self.llm, audit)
+        self.assertEqual(result['reply_coverage'], 'closest')
+        self.assertEqual(result['recommendations'][0]['summary'], self.llm.card['summary'])
+        self.assertEqual(result['points'][0]['text'], result['message'] + ' ' +
+                         self.llm.card['summary'] + ' ' + self.llm.closest['limitation'])
+        self.assertTrue(audit['closest_fallback']['checks'][0]['raw']['summary_supported'])
+        self.assertEqual(self.llm.calls[-1][0], CLOSEST_REVIEW_PROMPT)
+
+    def test_checked_related_summary_becomes_reply_when_writer_has_no_substantive_answer(self):
+        self.reply.return_value = {'points': [], 'reply_status': 'insufficient_evidence'}
+        result = self.run_guide()
+        self.assertEqual(result['status'], 'answered')
+        self.assertEqual(result['reply_coverage'], 'closest')
+        self.assertIn(self.llm.card['summary'], result['points'][0]['text'])
+        self.assertTrue(result['points'][0]['text'].endswith(self.llm.card['limitation']))
+        self.assertEqual(result['points'][0]['citations'], self.citations)
+        self.assertEqual(len(self.llm.calls), 3)  # Reuses the original source review.
+
+    def test_closest_selection_cannot_forge_a_citation_or_omit_the_gap(self):
+        self.llm.card['match'] = 'none'
+        self.llm.closest['limitation'] = ''
+        self.assertEqual(self.run_guide()['status'], 'invalid_evidence')
+        self.llm.closest.update(limitation='No recipe is provided.', passage_id='P999')
+        result = self.run_guide()
+        self.assertEqual(result['status'], 'invalid_evidence')
+        self.assertEqual(result['points'], [])
+
+    def test_closest_provider_failure_does_not_expose_private_details(self):
+        self.llm.card['match'] = 'none'
+        original = self.llm.complete
+        def complete(prompt, data, *, schema):
+            if prompt == CLOSEST_PROMPT:
+                raise RuntimeError('private provider detail')
+            return original(prompt, data, schema=schema)
+        self.llm.complete = complete
+        audit = {}
+        result = self.run_guide(audit=audit)
+        self.assertEqual(result['points'], [])
+        self.assertNotIn('private provider detail', str(result) + str(audit))
 
     def test_all_three_content_checks_and_real_support_ids_are_required(self):
         for field, value in [('summary_supported', False), ('relevance_supported', False),

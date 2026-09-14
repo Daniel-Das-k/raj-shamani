@@ -1,0 +1,11 @@
+{
+  "purpose": "User-requested single English query against the current indexed-video system; preserve the exact generated response.",
+  "cases": [
+    {
+      "id": 416,
+      "category": "doctor lookup with cold and fever",
+      "question": "Where can I find a doctor? I'm having a cold and fever.",
+      "review_criteria": "Report exactly what the system returns. Check whether any doctor/location recommendation is supported, whether the missing location is acknowledged, and whether closest indexed content is clearly distinguished from an actual doctor lookup. Do not invent a diagnosis, provider address, or appointment availability."
+    }
+  ]
+}

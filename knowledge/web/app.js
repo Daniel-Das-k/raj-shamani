@@ -154,13 +154,14 @@ function evidenceNode(source, number, guide = null) {
   time.rel = 'noopener noreferrer';
   heading.append(time);
   article.append(heading);
-  if (guide) article.append(element('p', 'excerpt-label', guide.match === 'direct' ? 'Relevant discussion' : 'Related discussion · partial match'));
+  if (guide) article.append(element('p', 'excerpt-label', guide.match === 'direct' ? 'Relevant discussion' :
+    guide.match === 'closest' ? 'Closest available content · no direct answer' : 'Related discussion · partial match'));
   const summary = guide?.summary || source.summary;
   if (summary) {
     article.append(element('p', 'excerpt-label', guide ? 'What this moment covers' : 'Summary'), element('p', 'reference-summary', summary));
   }
   if (guide) {
-    article.append(element('p', 'excerpt-label', 'Why it may help'), element('p', 'reference-summary', guide.why_relevant.replace(/^P\d+\b/, 'This moment').replace(/\bP\d+\b/g, 'another retrieved moment')));
+    article.append(element('p', 'excerpt-label', guide.match === 'closest' ? 'Connection to your question' : 'Why it may help'), element('p', 'reference-summary', guide.why_relevant.replace(/^P\d+\b/, 'This moment').replace(/\bP\d+\b/g, 'another retrieved moment')));
     if (guide.limitation) article.append(element('p', 'excerpt-label', 'Limits of this excerpt'), element('p', 'reference-summary', guide.limitation));
   }
   const original = element('details', 'original-transcript');
