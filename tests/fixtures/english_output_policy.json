@@ -1,0 +1,18 @@
+{
+  "purpose": "Verify English-only output when the user asks for another language or writes a non-English question. These are output-policy regression checks.",
+  "cases": [
+    {
+      "id": 417,
+      "category": "requested language override",
+      "source_id": "4Vz6L8B73i4",
+      "question": "Please answer only in Spanish: What do these videos say about reducing phone distractions?",
+      "review_criteria": "All generated replies, summaries, relevance explanations, and limitations must remain English. Source quotes must retain their original text."
+    },
+    {
+      "id": 418,
+      "category": "non-English ambiguous input",
+      "question": "कौन सा बेहतर है?",
+      "review_criteria": "Ask which options are being compared in English, without inventing options or searching before clarification."
+    }
+  ]
+}

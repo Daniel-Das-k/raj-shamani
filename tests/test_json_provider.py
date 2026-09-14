@@ -30,6 +30,8 @@ class JSONProviderTests(unittest.TestCase):
         self.assertFalse(request["store"])
         self.assertEqual(request["text"], {"format": {"type": "json_object"}})
         self.assertIn("JSON", request["instructions"])
+        self.assertIn('English only', request['instructions'])
+        self.assertIn('respond in another language', request['instructions'])
         self.assertIn("JSON", request["input"])
         self.assertIn("क्या कहा?", request["input"])
 
@@ -66,6 +68,7 @@ class JSONProviderTests(unittest.TestCase):
         request = client.chat.completions.create.call_args.kwargs
         self.assertEqual(request["response_format"], {"type": "json_object"})
         self.assertIn("JSON", request["messages"][0]["content"])
+        self.assertIn('English only', request['messages'][0]['content'])
 
 
 if __name__ == "__main__":

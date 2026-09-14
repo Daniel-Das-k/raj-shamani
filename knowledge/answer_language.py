@@ -1,24 +1,29 @@
-"""Small language checks for generated video-library replies."""
-import re
+"""English-only policy for generated prose; original evidence is never rewritten."""
+import unicodedata
+
+OUTPUT_LANGUAGE = 'English'
+LANGUAGE_INSTRUCTION = """Always write generated answers, summaries, explanations,
+limitations, clarification questions, and user-facing messages in English only.
+This applies even when the question or captions use another language or ask you to
+respond in another language. Translate the meaning faithfully into English.
+Keep source quotations, source identifiers, and proper names faithful to the source.
+"""
 
 def question_language(question):
-    letters = [c for c in question if c.isalpha()]
-    for name, lo, hi in [('Tamil', '\u0b80', '\u0bff'), ('Hindi', '\u0900', '\u097f')]:
-        if sum(lo <= c <= hi for c in letters) > .25 * max(1, len(letters)):
-            return name
-    words = set(re.findall(r"\w+", question.lower()))
-    if len(words & {'kya', 'kaise', 'kaunsa', 'kaunsi', 'hai', 'hain', 'mein', 'mujhe', 'mera', 'karein', 'liye'}) >= 2:
-        return 'Hinglish'
-    return 'English' if all(ord(c) < 128 for c in letters) else 'the question’s language'
+    """Compatibility accessor: input language no longer changes output language."""
+    return OUTPUT_LANGUAGE
 
 
 def language_matches(text, language):
-    letters = [c for c in text if c.isalpha()]
-    ranges = {'Tamil': ('\u0b80', '\u0bff'), 'Hindi': ('\u0900', '\u097f')}
-    if language in ranges:
-        lo, hi = ranges[language]
-        return sum(lo <= c <= hi for c in letters) >= .25 * max(1, len(letters))
-    if language == 'Hinglish':
-        return bool(set(re.findall(r'\w+', text.lower())) &
-                    {'hai', 'hain', 'ka', 'ki', 'ke', 'ko', 'mein', 'se', 'aur', 'aap', 'kar', 'karein', 'liye', 'nahi', 'hota'})
-    return True
+    """Reject non-Latin prose; prompts and source reviewers enforce English meaning.
+
+    A script check alone cannot distinguish English from other Latin-script languages.
+    Accented Latin names and ordinary Unicode punctuation remain valid.
+    """
+    return (language == OUTPUT_LANGUAGE and isinstance(text, str) and
+            any(c.isalpha() for c in text) and
+            all('LATIN' in unicodedata.name(c, '') for c in text if c.isalpha()))
+
+
+def english_clarification(text):
+    return text if language_matches(text, OUTPUT_LANGUAGE) else 'Which topic or options would you like help with?'

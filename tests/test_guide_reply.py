@@ -120,4 +120,10 @@ class GuideReplyTests(unittest.TestCase):
         self.llm.draft['sentences'][0]['text'] = 'Build a product that'
         self.assertEqual(self.run_reply()['reply_status'], 'invalid_evidence')
         self.llm = ReplyLLM()
-        self.assertEqual(compose_reply('என்ன செய்ய வேண்டும்?', self.recommendations, self.llm)['reply_status'], 'invalid_evidence')
+        self.llm.draft['sentences'][0]['text'] = 'வாடிக்கையாளர்களுடன் பேசுங்கள்.'
+        self.assertEqual(self.run_reply()['reply_status'], 'invalid_evidence')
+
+    def test_non_english_question_still_requests_an_english_reply(self):
+        result = compose_reply('என்ன செய்ய வேண்டும்?', self.recommendations, self.llm)
+        self.assertEqual(result['reply_status'], 'ready')
+        self.assertEqual(self.llm.calls[0][1]['output_language'], 'English')

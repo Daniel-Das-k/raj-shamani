@@ -93,6 +93,14 @@ class RetrievalTests(unittest.TestCase):
         self.client.search.assert_not_called()
         self.assertEqual(self.llm.complete.call_count, 1)
 
+    def test_non_english_clarification_is_replaced_with_an_english_question(self):
+        self.library.answer_strategy = 'video_guide'
+        self.llm.complete.side_effect = [{'clarifying_question': 'कौन से विकल्प?', 'queries': []}]
+        result = retrieve(self.library, 'कौन सा बेहतर है?')
+        self.assertEqual(result['clarifying_question'], 'Which topic or options would you like help with?')
+        self.assertEqual(self.llm.complete.call_args.args[1]['output_language'], 'English')
+        self.client.search.assert_not_called()
+
     def test_context_expansion_preserves_negation_in_neighboring_caption(self):
         cite = context_citation(source_citation(self.source, 0, 0), self.source)
         self.assertIn('does not work for everyone', cite['quote'])

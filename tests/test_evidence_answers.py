@@ -113,6 +113,8 @@ class EvidenceAnswerTests(unittest.TestCase):
         self.assertEqual(len(self.llm.calls), 2)
 
     def test_wrong_language_and_unknown_units_fail_closed(self):
+        for reading in self.llm.readings.values():
+            reading['statements'][0]['text'] = 'விண்வெளியில் மாற்றங்கள் ஏற்படும்.'
         answer = answer_from_evidence('விண்வெளியில் என்ன நடக்கும்?', self.citations, self.sources, self.llm)
         self.assertEqual(answer['status'], 'invalid_evidence')
         self.llm = Reader()
@@ -121,12 +123,15 @@ class EvidenceAnswerTests(unittest.TestCase):
         answer = answer_from_evidence('Explain.', self.citations, self.sources, self.llm)
         self.assertEqual(answer['status'], 'invalid_evidence')
 
-    def test_language_detection_and_script_checks(self):
-        self.assertEqual(question_language('RACI mein difference kya hai?'), 'Hinglish')
-        self.assertEqual(question_language('GDP क्यों बढ़ती है?'), 'Hindi')
-        self.assertEqual(question_language('தரம் பற்றி விளக்குங்கள்'), 'Tamil')
+    def test_output_language_is_always_english_and_other_scripts_are_rejected(self):
+        self.assertEqual(question_language('RACI mein difference kya hai?'), 'English')
+        self.assertEqual(question_language('GDP क्यों बढ़ती है?'), 'English')
+        self.assertEqual(question_language('தரம் பற்றி விளக்குங்கள்'), 'English')
+        self.assertTrue(language_matches('This is an English reply.', 'English'))
+        self.assertTrue(language_matches('José’s café costs ₹50.', 'English'))
+        self.assertFalse(language_matches('தரம் முக்கியம்.', 'English'))
+        self.assertFalse(language_matches('यह जवाब हिंदी में है।', 'English'))
         self.assertFalse(language_matches('This is an English reply.', 'Tamil'))
-        self.assertTrue(language_matches('தரம் முக்கியம்.', 'Tamil'))
 
 
 if __name__ == '__main__':

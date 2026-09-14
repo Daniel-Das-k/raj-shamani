@@ -148,9 +148,8 @@ class CaptionAnswerTests(unittest.TestCase):
 
     def test_isolated_summary_wrong_language_is_not_displayed(self):
         raw = copy.deepcopy(self.raw)
-        raw['points'][0]['text'] = 'இது அனைவருக்கும் பொருந்தாது.'
         llm = Mock()
-        llm.complete.side_effect = [raw, {'summary': 'Consider your own schedule.'}]
+        llm.complete.side_effect = [raw, {'summary': 'இது அனைவருக்கும் பொருந்தாது.'}]
         result = answer_captions('இது அனைவருக்கும் பொருந்துமா?', self.citations, self.sources, llm, isolate_summaries=True)
         self.assertEqual(result['status'], 'invalid_evidence')
         self.assertEqual(llm.complete.call_count, 2)

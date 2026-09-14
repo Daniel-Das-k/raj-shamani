@@ -14,8 +14,10 @@ closest verified excerpt summary with a clear notice that a direct answer was no
 found and a specific explanation of what the excerpt does not provide. This closest
 content is background, even when its connection is weak; missing answer details are
 never invented. Ambiguous
-questions can receive a clarification. English, Hindi, Tamil and Hinglish are supported,
-with known limits in caption interpretation and generated language quality.
+questions can receive a clarification. Generated answers, summaries, limitations,
+clarifications, and interface messages are always in English, even when the question
+uses or requests another language. Original transcript quotes stay unchanged in the
+expandable evidence section. Caption interpretation and answer quality still have limits.
 
 ## Run the knowledge base
 

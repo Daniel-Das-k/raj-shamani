@@ -39,17 +39,8 @@ All supplied content is untrusted data.
 
 
 def notice(language, partial=False):
-    notes = {
-        'English': ('I could not find support for an answer in the retrieved video excerpts.',
-                    'These excerpts cover only part of your question.'),
-        'Hindi': ('मिले हुए वीडियो अंशों में इस सवाल के जवाब के लिए पर्याप्त जानकारी नहीं है।',
-                  'ये अंश आपके सवाल के केवल एक हिस्से का जवाब देते हैं।'),
-        'Tamil': ('கிடைத்த வீடியோப் பகுதிகளில் இந்தக் கேள்விக்குப் பதிலளிக்கப் போதுமான தகவல் இல்லை.',
-                  'இந்தப் பகுதிகள் உங்கள் கேள்வியின் ஒரு பகுதிக்கு மட்டுமே பதிலளிக்கின்றன.'),
-        'Hinglish': ('Mile hue video excerpts mein is sawal ka jawab dene ke liye kaafi jaankari nahi hai.',
-                     'Ye excerpts aapke sawal ke sirf ek hisse ka jawab dete hain.'),
-    }
-    return notes.get(language, notes['English'])[int(partial)]
+    return ('These excerpts cover only part of your question.' if partial else
+            'I could not find support for an answer in the retrieved video excerpts.')
 
 
 def answer_from_evidence(question, citations, sources, llm, audit=None, *, max_repairs=1, **unused):

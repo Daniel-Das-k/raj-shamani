@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from .answer_language import LANGUAGE_INSTRUCTION
 
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 
@@ -43,7 +44,7 @@ class GroqJSON:
                 model=self.model_name,
                 temperature=0, max_completion_tokens=4000,
                 response_format={"type": "json_object"},
-                messages=[{"role": "system", "content": system + "\nReturn a valid JSON object only."},
+                messages=[{"role": "system", "content": system + '\n' + LANGUAGE_INSTRUCTION + "\nReturn a valid JSON object only."},
                           {"role": "user", "content": json.dumps(data, ensure_ascii=False)}],
             )
         if response.choices[0].finish_reason != "stop":
@@ -69,7 +70,7 @@ class OpenAIJSON:
             response = client.responses.create(
                 model=self.model_name, temperature=0, max_output_tokens=4000,
                 store=False, text={'format': output_format},
-                instructions=system + '\nReturn a valid JSON object only.',
+                instructions=system + '\n' + LANGUAGE_INSTRUCTION + '\nReturn a valid JSON object only.',
                 input='Input JSON:\n' + json.dumps(data, ensure_ascii=False),
             )
         if response.status != 'completed':

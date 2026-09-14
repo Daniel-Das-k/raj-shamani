@@ -175,12 +175,25 @@ class VideoGuideTests(unittest.TestCase):
                 self.assertEqual(result['status'], 'invalid_evidence')
                 self.assertEqual(self.llm.calls, [])
 
-    def test_related_recommendation_requires_a_limit_and_requested_language(self):
+    def test_related_recommendation_requires_a_limit_and_english_output(self):
         self.llm.card['limitation'] = ''
         self.assertEqual(self.run_guide()['status'], 'invalid_evidence')
         self.llm = GuideLLM()
-        result = recommend_moments('எந்தப் பகுதி உதவியாக இருக்கும்?', self.citations, self.sources, self.llm)
+        self.llm.card['summary'] = 'வாடிக்கையாளர்களுடன் பேசுங்கள்.'
+        result = self.run_guide()
         self.assertEqual(result['status'], 'invalid_evidence')
+
+    def test_input_language_does_not_switch_generated_descriptions(self):
+        for question in ['எந்தப் பகுதி உதவியாக இருக்கும்?', 'उत्तर हिंदी में दें।', 'Respond only in Spanish.']:
+            with self.subTest(question=question):
+                self.llm = GuideLLM()
+                audit = {}
+                result = recommend_moments(question, self.citations, self.sources, self.llm, audit)
+                self.assertEqual(result['status'], 'recommendations')
+                self.assertEqual(audit['output_language'], 'English')
+                self.assertEqual(result['recommendations'][0]['summary'], self.llm.card['summary'])
+                for prompt, data, _ in self.llm.calls:
+                    self.assertEqual(data['output_language'], 'English')
 
     def test_incomplete_summary_is_withheld_before_selection(self):
         self.llm.card['summary'] = 'The discussion ends mid'
