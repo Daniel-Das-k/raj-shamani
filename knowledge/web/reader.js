@@ -6,6 +6,7 @@ const storageKey = 'figuring-out.collections.v1';
 let catalog = [], status = null, view = 'discover', topic = '', query = '', visibleCount = 12;
 let collections = [], currentCollection = '', pendingSave = null, busy = false, historyOffset = 0;
 let currentMoments = [], toastTimer, statusTimer, lastFocused = null;
+let answerRoute = 'answer', lastQuestion = null, navigationVersion = 0;
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -128,16 +129,22 @@ function stopVideo() { $('#video-container').replaceChildren(); $('#watch-contai
 function navigate(next, options = {}) {
   if (!['discover', 'conversations', 'saved', 'answer'].includes(next)) next = 'discover';
   if (view !== next) { stopVideo(); if ($('#video-dialog').open) $('#video-dialog').close(); }
-  view = next;
+  view = next; navigationVersion++;
   document.querySelectorAll('.view').forEach(section => { section.hidden = section.id !== `${view}-view`; });
   document.querySelectorAll('[data-view]').forEach(node => {
     if (node.closest('.main-nav') && node.dataset.view === view) node.setAttribute('aria-current', 'page');
     else node.removeAttribute('aria-current');
   });
-  if (location.hash !== '#' + view) history.replaceState(null, '', '#' + view);
+  const route = options.route || (view === 'answer' ? answerRoute : view);
+  if (options.history !== false && location.hash !== '#' + route) history[options.replace ? 'replaceState' : 'pushState'](null, '', '#' + route);
+  const destination = view === 'answer' ? $('#answer-composer-body') : $('#home-composer');
+  destination.append($('#question-form'), $('#availability-note'));
+  $('#question').placeholder = view === 'answer' ? 'What else are you trying to figure out?' : 'What are you trying to figure out?';
+  $('#question-label').textContent = view === 'answer' ? 'Ask another question' : 'What are you trying to figure out?';
   if (view === 'conversations') renderCatalog();
   if (view === 'saved') { renderSaved(); historyOffset = 0; loadHistory(); }
   updateResume();
+  updateConnection();
   if (options.scroll !== false) window.scrollTo({top: 0, behavior: 'instant'});
 }
 function openCatalog(search = '', selectedTopic = '') {
@@ -258,25 +265,41 @@ async function loadHistory() {
     $('#history-more').hidden = historyOffset + result.items.length >= result.total;
   } catch { $('#response-history').replaceChildren(el('p', 'section-note', 'Past questions are unavailable right now. Try again when the local library is connected.')); }
 }
-async function openHistory(id) {
+async function openHistory(id, options = {}) {
   if (busy) { toast('Let this question finish before opening another.'); return; }
+  const version = ++navigationVersion;
   try {
     const record = await api('/api/responses/' + id);
-    beginAnswer(record.question); renderAnswer(record.response);
-    $('#request-status').textContent = `Saved response · ${new Date(record.created_at).toLocaleString()}`;
+    if (version !== navigationVersion || busy) return;
+    lastQuestion = {question: record.question, sourceID: record.source_id || ''};
+    answerRoute = 'answer/' + id;
+    beginAnswer(record.question, {...options, route: answerRoute}); renderAnswer(record.response);
+    if (!record.response.error) $('#request-status').textContent = `Saved response · ${new Date(record.created_at).toLocaleString()}`;
   } catch (error) { toast(error.message); }
+}
+function followRoute() {
+  const route = location.hash.slice(1);
+  if (route.startsWith('moment-')) return;
+  if (/^answer\/[a-f0-9]{32}$/.test(route)) {
+    if (route === answerRoute && $('#asked-question').textContent) { navigate('answer', {history: false}); if (currentMoments.length) previewWatch(currentMoments[0].citation || currentMoments[0]); }
+    else if (busy) { toast('Your current question is still being checked.'); navigate('answer', {replace: true}); }
+    else openHistory(route.split('/')[1], {history: false});
+  } else if (route === 'answer' && $('#asked-question').textContent) navigate('answer', {replace: true});
+  else navigate(['discover', 'conversations', 'saved'].includes(route) ? route : 'discover', {replace: true});
 }
 function updateResume() {
   $('#resume-question').hidden = view === 'answer' || !$('#asked-question').textContent;
   $('#resume-label').textContent = busy ? 'Your question is being checked. Return to the conversation' : 'Return to your last question';
 }
 function setProgress(text, error = false, loading = false) { $('#request-status').textContent = text; $('#request-status').className = 'request-status' + (error ? ' error' : '') + (loading ? ' loading' : ''); }
-function beginAnswer(question) {
-  navigate('answer'); $('#asked-question').textContent = question; $('#answer').replaceChildren(); $('#moments').replaceChildren(); $('#moments-section').hidden = true;
+function beginAnswer(question, options = {}) {
+  navigate('answer', options); $('#asked-question').textContent = question; $('#answer').replaceChildren(); $('#moments').replaceChildren(); $('#moments-section').hidden = true;
+  $('#retry-question').hidden = true;
+  $('#answer-scope').textContent = lastQuestion?.sourceID ? 'Searched in: ' + (findVideo(lastQuestion.sourceID)?.title || 'Selected conversation') : 'Searched across all conversations';
   $('#watch-panel').hidden = true; $('#watch-container').replaceChildren(); currentMoments = []; setProgress('');
 }
 function momentCard(citation, index, guide) {
-  const node = el('article', 'moment'); node.id = `moment-${index + 1}`;
+  const node = el('article', 'moment'); node.id = `moment-${index + 1}`; node.tabIndex = -1;
   const top = el('div', 'moment-topline'), copy = el('div');
   const video = findVideo(videoID(citation));
   copy.append(el('h3', '', video?.guest || citation.title), el('p', '', `MOMENT ${String(index + 1).padStart(2, '0')} · ${citation.time_range || timeLabel(citation.start)}`));
@@ -300,7 +323,12 @@ function renderMoments(items, provisional = false) {
 }
 function renderAnswer(answer) {
   $('#answer').replaceChildren();
+  if (/^[a-f0-9]{32}$/.test(answer.record_id || '')) {
+    answerRoute = 'answer/' + answer.record_id;
+    if (view === 'answer') history.replaceState(null, '', '#' + answerRoute);
+  }
   if (answer.error) {
+    $('#retry-question').hidden = false;
     $('#answer').append(el('p', 'answer-message error', answer.error));
     if (currentMoments.length) $('#moments-note').textContent = 'The answer could not finish. These retrieved original excerpts remain available to explore; their relevance has not been verified.';
     setProgress('The request could not finish.', true); return;
@@ -318,7 +346,12 @@ function renderAnswer(answer) {
       (point.citations || []).forEach(c => {
         const number = moments.findIndex(m => videoID(m.citation) === videoID(c) && m.citation.start === c.start && m.citation.end === c.end) + 1;
         if (number < 1 || linked.has(number)) return;
-        const link = el('a', 'citation-link', String(number)); link.href = '#moment-' + number; link.setAttribute('aria-label', `Read supporting moment ${number}`); paragraph.append(link); linked.add(number);
+        const link = el('a', 'citation-link', String(number)); link.href = '#moment-' + number; link.setAttribute('aria-label', `Read supporting moment ${number}`);
+        link.addEventListener('click', event => {
+          event.preventDefault(); const target = $('#moment-' + number);
+          target?.scrollIntoView({block: 'start', behavior: 'instant'}); target?.focus({preventScroll: true});
+        });
+        paragraph.append(link); linked.add(number);
       });
       prose.append(paragraph);
     });
@@ -328,18 +361,23 @@ function renderAnswer(answer) {
   if (!moments.length) { $('#watch-panel').hidden = true; $('#watch-container').replaceChildren(); }
   setProgress(answer.recording_error || (answer.record_id ? 'Saved to your past questions. Every reference opens the original source.' : 'Based on the retrieved conversations.'), Boolean(answer.recording_error));
 }
-async function ask(question, selectedTopic = '') {
+async function ask(question, selectedTopic = '', options = {}) {
   if (busy || !question.trim()) return;
   question = question.trim();
   if (question.length > 6000) { toast('Keep your question under 6,000 characters.'); return; }
   if (!canAnswer()) {
+    if (view === 'answer') { toast('The answer archive is unavailable. Your draft is kept here; reconnect the library to ask it.'); return; }
     openCatalog(selectedTopic ? '' : question, selectedTopic);
     toast('Showing episode titles and topics. Answer search needs the connected caption archive.'); return;
   }
-  busy = true; $('#ask-button').disabled = true; $('#video-scope').disabled = true;
+  const sourceID = options.sourceID ?? $('#video-scope').value;
+  lastQuestion = {question, sourceID}; answerRoute = 'answer';
+  busy = true; $('#ask-button').disabled = true;
+  if (!options.retry) { $('#question').value = ''; $('#question').style.height = '44px'; }
   beginAnswer(question); setProgress('Searching the original conversations…', false, true);
+  updateConnection(); $('#asked-question').focus({preventScroll: true});
   try {
-    const payload = {question}; if ($('#video-scope').value) payload.source_id = $('#video-scope').value;
+    const payload = {question}; if (sourceID) payload.source_id = sourceID;
     const response = await fetch('/api/ask/stream', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
     if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'This question could not be sent.'); }
     if (!response.body) throw new Error('The response stream is unavailable in this browser.');
@@ -359,10 +397,11 @@ async function ask(question, selectedTopic = '') {
     }
     if (!finished) throw new Error('The connection ended before the answer was ready. Your original excerpts are still available below.');
   } catch (error) {
+    $('#retry-question').hidden = false;
     setProgress(error.message || 'This request could not finish. Please try again.', true);
     if (currentMoments.length) $('#moments-note').textContent = 'The answer did not finish. These retrieved excerpts are available to explore; their relevance has not been verified.';
   } finally {
-    busy = false; $('#ask-button').disabled = false; $('#video-scope').disabled = false; updateConnection(); updateResume();
+    busy = false; $('#ask-button').disabled = false; updateConnection(); updateResume();
     if (view === 'saved') { historyOffset = 0; loadHistory(); }
   }
 }
@@ -373,9 +412,12 @@ function updateConnection() {
     $('#video-scope').replaceChildren(first, ...videos.map(v => { const o = el('option', '', v.title); o.value = v.id; return o; }));
     if (videos.some(v => v.id === selected)) $('#video-scope').value = selected;
   }
-  $('#search-mode').textContent = canAnswer() ? 'Ask the archive' : 'Browse episodes';
-  $('#ask-button').setAttribute('aria-label', canAnswer() ? 'Ask the archive' : 'Browse matching episodes');
+  $('#search-mode').textContent = canAnswer() ? 'Ask the archive' : view === 'answer' ? 'Archive unavailable' : 'Browse episodes';
+  $('#ask-button').setAttribute('aria-label', view === 'answer' ? 'Ask another question' : canAnswer() ? 'Ask the archive' : 'Browse matching episodes');
   $('#availability-note').textContent = canAnswer() ? 'Answers with original excerpts and links to the exact moments.' : 'Explore episodes now. Answers become available when the caption archive is connected.';
+  if (view === 'answer') $('#availability-note').textContent = busy ? 'Checking your answer. You can draft your next question while you wait.' : 'Each question searches independently. Include the names or topics you mean.';
+  if (view === 'answer' && !busy && !canAnswer()) $('#availability-note').textContent = 'The answer archive is unavailable. Your draft stays here while the library reconnects.';
+  $('#retry-question').disabled = busy;
   $('#archive-status').textContent = `${catalog.length} episodes in this catalog. ${videos.length} conversations currently searchable.`;
   const missing = [];
   if (!videos.length) missing.push('Restore the original data directory to make caption search available.');
@@ -402,14 +444,15 @@ function bind() {
   $('#load-more').addEventListener('click', () => { visibleCount += 12; renderCatalog(); });
   $('#new-collection').addEventListener('click', () => openSave());
   $('#history-more').addEventListener('click', () => { historyOffset += 20; loadHistory(); });
-  $('#ask-again').addEventListener('click', () => { if (busy) { toast('The current question is still being checked.'); return; } navigate('discover'); $('#question').focus(); });
+  $('#ask-again').addEventListener('click', () => { $('#question').focus({preventScroll: true}); $('#answer-composer').scrollIntoView({block: 'center', behavior: 'instant'}); });
+  $('#retry-question').addEventListener('click', () => { if (lastQuestion) ask(lastQuestion.question, '', {sourceID: lastQuestion.sourceID, retry: true}); });
   $('#return-to-answer').addEventListener('click', () => { navigate('answer'); if (currentMoments.length) previewWatch(currentMoments[0].citation || currentMoments[0]); });
   $('#close-watch').addEventListener('click', () => { $('#watch-container').replaceChildren(); $('#watch-panel').hidden = true; });
   $('#close-video').addEventListener('click', () => closeDialog('video-dialog'));
   $('#video-dialog').addEventListener('close', () => { $('#video-container').replaceChildren(); lastFocused?.focus(); });
   $('#save-dialog').addEventListener('close', () => lastFocused?.focus());
   $('#about-button').addEventListener('click', () => $('#about-dialog').showModal());
-  window.addEventListener('hashchange', () => { const next = location.hash.slice(1); if (['discover', 'conversations', 'saved'].includes(next)) navigate(next); });
+  window.addEventListener('hashchange', followRoute);
   window.addEventListener('storage', event => { if (event.key === storageKey) { collections = loadCollections(); updateSavedCount(); if (view === 'saved') renderSaved(); } });
 }
 async function init() {
@@ -419,7 +462,7 @@ async function init() {
     renderHome();
   } catch { $('#editorial-picks').replaceChildren(el('p', 'section-note', 'The episode catalog could not load. Refresh to try again.')); }
   await refreshStatus();
-  navigate(['discover', 'conversations', 'saved'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'discover', {scroll: false});
+  followRoute();
   statusTimer = setInterval(() => { if (!document.hidden && !busy) refreshStatus(); }, 15000);
 }
 init();

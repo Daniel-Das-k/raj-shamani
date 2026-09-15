@@ -103,19 +103,26 @@ const path = require('node:path');
       url: `https://www.youtube.com/watch?v=${video.id}&t=100s`, quote: 'Synthetic fixture: consistent routines can help you focus.'};
     const answer = {status: 'answered', record_id: 'a'.repeat(32), points: [{text: 'A consistent routine can make it easier to focus.', citations: [citation]}],
       recommendations: [{match: 'related', summary: 'The excerpt connects everyday routines to focus.', why_relevant: 'It discusses the role of routine.', limitation: 'It does not establish a personal outcome.', citation}]};
-    let requests = 0;
+    let requests = 0, failure = false, releaseRequest;
+    let heldRequest = null;
+    const sent = [], records = new Map();
+    records.set('a'.repeat(32), {question: 'How can I focus better?', source_id: video.id, response: answer, created_at: '2026-09-15T08:00:00Z'});
     await page.route('**/api/status', route => route.fulfill({json: {backend: 'supermemory', read_only: true, credentials: {answers: true, indexing: true}, sources: [video], counts: {ready: 1}, total: 1}}));
-    await page.route('**/api/ask/stream', route => {
+    await page.route('**/api/ask/stream', async route => {
       requests++;
-      assert.equal(route.request().postDataJSON().source_id, video.id);
+      const payload = route.request().postDataJSON(); sent.push(payload);
+      const id = requests.toString(16).padStart(32, '0');
+      const response = failure ? {error: 'Test fixture: the provider is temporarily unavailable.', record_id: id} : {...answer, record_id: id};
+      records.set(id, {question: payload.question, source_id: payload.source_id, response, created_at: '2026-09-15T08:00:00Z'});
+      if (heldRequest) await heldRequest;
       return route.fulfill({contentType: 'application/x-ndjson', body: [
         {type: 'stage', message: 'Searching original conversations…'},
         {type: 'excerpts', excerpts: [citation], message: 'Checking the answer…'},
-        {type: 'answer', response: answer, http_status: 200},
+        {type: 'answer', response, http_status: failure ? 500 : 200},
       ].map(x => JSON.stringify(x)).join('\n') + '\n'});
     });
     await page.route('**/api/responses?*', route => route.fulfill({json: {total: 1, items: [{id: 'a'.repeat(32), question: 'How can I focus better?', created_at: '2026-09-15T08:00:00Z', status: 'answered'}]}}));
-    await page.route(`**/api/responses/${'a'.repeat(32)}`, route => route.fulfill({json: {question: 'How can I focus better?', response: answer, created_at: '2026-09-15T08:00:00Z'}}));
+    await page.route(/\/api\/responses\/[a-f0-9]{32}$/, route => route.fulfill({json: records.get(route.request().url().split('/').pop())}));
     await page.setViewportSize({width: 1440, height: 1000});
     await page.goto(origin);
     await page.waitForFunction(() => document.querySelector('#search-mode').textContent === 'Ask the archive');
@@ -123,10 +130,16 @@ const path = require('node:path');
     await page.locator('#question').fill('How can I focus better?');
     await page.locator('#question').press('Enter');
     await page.locator('.answer-prose').waitFor();
+    assert.equal(sent[0].source_id, video.id);
     assert.equal(await page.locator('.moment').count(), 1);
     assert.equal(await page.locator('#watch-panel').isVisible(), true);
     await page.waitForFunction(() => { const image = document.querySelector('#watch-container img'); return image?.complete && image.naturalWidth > 0; });
     assert.equal(await page.locator('.citation-link').getAttribute('href'), '#moment-1');
+    const savedAnswerURL = page.url();
+    await page.locator('.citation-link').click();
+    assert.equal(page.url(), savedAnswerURL, 'Citation jump preserves the saved answer URL for refresh');
+    assert.equal(await page.locator('#moment-1').evaluate(el => document.activeElement === el), true);
+    await page.evaluate(() => window.scrollTo({top: 0, behavior: 'instant'}));
     await overflow();
     await page.screenshot({path: path.join(output, 'answer-desktop.png'), fullPage: true});
     await page.locator('#theme-toggle').click();
@@ -151,10 +164,54 @@ const path = require('node:path');
     assert.equal(requests, 1, 'History reopening must not generate another answer');
     await page.locator('#ask-again').click();
     assert.equal(await page.locator('#question').evaluate(el => document.activeElement === el), true);
+    assert.equal(await page.locator('#answer-view').isVisible(), true, 'Ask another stays with the answer');
+    await page.locator('#question').fill('How do I build a business?');
+    await page.locator('#video-scope').selectOption('');
+    await page.locator('.main-nav [data-view=saved]').click();
     await page.locator('#return-to-answer').click();
+    assert.equal(await page.locator('#question').inputValue(), 'How do I build a business?', 'Draft survives browsing');
     assert.equal(await page.locator('.answer-prose').isVisible(), true);
     assert.equal(requests, 1, 'Returning to the current question must not regenerate it');
+    await page.locator('#question').press('Enter');
+    await page.waitForFunction(() => document.querySelector('#asked-question').textContent === 'How do I build a business?' && !document.querySelector('#ask-button').disabled);
+    assert.deepEqual(sent[1], {question: 'How do I build a business?'}, 'Next question is independent and uses the visible scope');
+    assert.equal(await page.locator('#question').inputValue(), '', 'Successful submission leaves an empty composer');
+    await page.goBack();
+    await page.waitForFunction(() => document.querySelector('#asked-question').textContent === 'How can I focus better?');
+    assert.equal(requests, 2, 'Back restores the previous saved answer without generation');
+    await page.goForward();
+    await page.waitForFunction(() => document.querySelector('#asked-question').textContent === 'How do I build a business?');
+    await page.reload();
+    await page.waitForFunction(() => document.querySelector('#asked-question').textContent === 'How do I build a business?');
+    assert.equal(requests, 2, 'Refresh restores the saved answer');
+    failure = true;
+    await page.locator('#question').fill('What helps with sleep?');
+    await page.locator('#question').press('Enter');
+    await page.locator('#retry-question').waitFor();
+    await page.waitForFunction(() => !document.querySelector('#ask-button').disabled);
+    failure = false;
+    heldRequest = new Promise(resolve => { releaseRequest = resolve; });
+    await page.locator('#question').fill('A draft for later');
+    await page.locator('#retry-question').click();
+    await page.waitForFunction(() => document.querySelector('#ask-button').disabled);
+    assert.equal(await page.locator('#question').inputValue(), 'A draft for later', 'Retry preserves the next question draft');
+    await page.locator('#ask-again').click();
+    await page.locator('#question').fill('Can I prepare my next question?');
+    await page.locator('#question').press('Enter');
+    assert.equal(requests, 4, 'Typing while busy must not submit another request');
+    releaseRequest(); heldRequest = null;
+    await page.waitForFunction(() => !document.querySelector('#ask-button').disabled);
+    assert.equal(await page.locator('#question').inputValue(), 'Can I prepare my next question?', 'Completion preserves a draft typed while waiting');
+    assert.deepEqual(sent[3], sent[2], 'Retry uses the failed question and its original scope');
+    for (const width of [320, 390, 1440]) {
+      await page.setViewportSize({width, height: 900});
+      await overflow();
+      await page.locator('#ask-again').click();
+      assert.equal(await page.locator('#question').evaluate(el => { const r = el.getBoundingClientRect(); return r.top >= 100 && r.bottom <= innerHeight; }), true, 'Composer focus stays visible below the header');
+      await page.evaluate(() => window.scrollTo({top: 0, behavior: 'instant'}));
+      await page.screenshot({path: path.join(output, `question-flow-${width}.png`), fullPage: true});
+    }
     assert.deepEqual(errors, []);
-    console.log('Reader checks passed: real catalog, playback, filters, pagination, saved collections/reload/removal, mobile 320/390/768, streamed answer fixture, scoped request, citations, original text, docked player, saved moments, history reopening, keyboard submission.');
+    console.log('Reader checks passed: catalog, playback, collections, light/dark themes, responsive layouts, citations, repeat questions in place, drafts, visible scope, retry, busy submission guard, Back/Forward, refresh, and saved-answer reopening without generation.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

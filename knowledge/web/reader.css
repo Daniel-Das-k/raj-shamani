@@ -59,3 +59,19 @@ dialog{background:#fafbf8;color:var(--ink);border:1px solid #dbe3d3;border-radiu
 @media(max-width:1100px){.header-actions{gap:14px}.header-inner{gap:20px}}
 @media(max-width:800px){.header-actions{gap:10px}.theme-toggle{width:34px;height:34px}.header-inner{gap:15px}}
 @media(max-width:600px){.header-inner{height:auto;min-height:100px;display:grid;grid-template-columns:1fr auto;gap:9px 16px;padding-top:15px;padding-bottom:0}.header-actions{grid-column:2;grid-row:1}.main-nav{grid-row:2;grid-column:1/-1;margin:0;justify-content:space-between;gap:20px;height:36px}.main-nav button{font-size:11px}.wordmark>span{font-size:17px}.theme-toggle{width:34px;height:34px}}
+
+/* Continue asking where the answer lives, with the scope always visible. */
+.answer-scope{font-size:11px;color:var(--muted);margin:-12px 0 16px;overflow-wrap:anywhere}
+.retry-question{margin:0 0 16px}
+.answer-composer{padding:20px 0 24px;background:var(--bg);border-top:1px solid var(--line);margin:22px 0 10px;scroll-margin-top:120px}
+.next-question-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
+.next-question-heading h2{font-size:18px;letter-spacing:-.4px}
+.answer-composer .availability-note{margin-bottom:0;color:var(--muted)}
+.answer-composer .search-input-row textarea{font-size:15px}
+.answer-composer .search-options,.answer-composer .search-options select{font-size:11px}
+.answer-composer .search-options>span{font-size:10px}
+#asked-question:focus{outline:none}
+.answer-layout{margin-bottom:35px}
+@media(max-width:800px){.answer-composer{max-width:none}.answer-layout .watch-panel{grid-row:auto}.answer-layout:has(.watch-panel:not([hidden])){display:flex;flex-direction:column}.answer-layout>div,.answer-layout .watch-panel{width:100%}}
+@media(max-width:600px){.answer-composer{padding-top:12px}.next-question-heading h2{font-size:16px}.answer-composer .search-input-row textarea{font-size:16px}.answer-composer .availability-note{font-size:10px}.answer-composer .search-options select{max-width:53%;font-size:10px}.answer-scope{margin:0 0 14px}.answer-heading>.outline-button{margin-bottom:12px}.next-question-heading .text-link{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.answer-composer{scroll-behavior:auto}}
