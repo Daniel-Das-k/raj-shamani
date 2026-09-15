@@ -20,7 +20,7 @@ const path = require('node:path');
       if (bad.actual > bad.width) { console.log(bad); await page.screenshot({path: path.join(output, 'overflow.png'), fullPage: true}); }
       assert.ok(bad.actual <= bad.width, 'Horizontal overflow');
     };
-    await page.emulateMedia({reducedMotion: 'reduce'});
+    await page.emulateMedia({reducedMotion: 'reduce', colorScheme: 'light'});
     await page.goto(origin);
     await page.locator('.editorial-lead').waitFor();
     await page.waitForFunction(() => document.querySelector('#search-mode').textContent !== 'Loading archive…');
@@ -29,6 +29,29 @@ const path = require('node:path');
     assert.equal(await page.locator('.traffic-lights, .app-window').count(), 0);
     assert.equal(await page.locator('.feature-media img').evaluate(image => image.complete && image.naturalWidth > 0), true);
     await page.screenshot({path: path.join(output, 'discovery-desktop.png'), fullPage: true});
+
+    await page.emulateMedia({colorScheme: 'dark'});
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    assert.equal(await page.locator('#theme-toggle').getAttribute('aria-pressed'), 'true');
+    await page.screenshot({path: path.join(output, 'dark-discovery-desktop.png'), fullPage: true});
+    await page.locator('#theme-toggle').click();
+    await page.reload();
+    assert.equal(await page.locator('html').getAttribute('data-theme'), 'light', 'Manual light choice survives reload under dark OS');
+    await page.locator('#theme-toggle').click();
+    await page.emulateMedia({colorScheme: 'light'});
+    await page.reload();
+    assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'Manual dark choice overrides light OS and survives reload');
+    await page.locator('.editorial-lead').waitFor();
+    await page.locator('[data-save]').first().click();
+    await page.screenshot({path: path.join(output, 'dark-save-dialog.png')});
+    await page.keyboard.press('Escape');
+    for (const width of [320, 390, 768]) {
+      await page.setViewportSize({width, height: 844});
+      await overflow();
+      if (width === 390) await page.screenshot({path: path.join(output, 'dark-discovery-mobile.png'), fullPage: true});
+    }
+    await page.setViewportSize({width: 1440, height: 1000});
+    await page.locator('#theme-toggle').click();
 
     await page.getByRole('button', {name: 'Watch the Andrew Huberman conversation', exact: true}).click();
     assert.match(await page.locator('#video-container iframe').getAttribute('src'), /Y566_T-YlNQ/);
@@ -106,6 +129,9 @@ const path = require('node:path');
     assert.equal(await page.locator('.citation-link').getAttribute('href'), '#moment-1');
     await overflow();
     await page.screenshot({path: path.join(output, 'answer-desktop.png'), fullPage: true});
+    await page.locator('#theme-toggle').click();
+    await page.screenshot({path: path.join(output, 'dark-answer-desktop.png'), fullPage: true});
+    await page.locator('#theme-toggle').click();
     await page.getByText('Read the original excerpt', {exact: true}).click();
     assert.equal(await page.locator('.moment blockquote').textContent(), citation.quote);
     await page.route('https://www.youtube-nocookie.com/**', route => route.fulfill({contentType: 'text/html', body: '<html><body>Offline player fixture</body></html>'}));

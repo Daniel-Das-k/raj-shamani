@@ -166,6 +166,7 @@ def handler_for(demo: Demo):
                       "/mac.css": ("mac.css", "text/css"),
                       "/reader.css": ("reader.css", "text/css"),
                       "/reader.js": ("reader.js", "text/javascript"),
+                      "/theme.js": ("theme.js", "text/javascript"),
                       "/catalog.json": ("catalog.json", "application/json"),
                       "/media/huberman.png": ("media/huberman.png", "image/png"),
                       "/favicon.svg": ("favicon.svg", "image/svg+xml"),
