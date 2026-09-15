@@ -1,0 +1,482 @@
+{
+  "source": "INDEXED_VIDEOS.md",
+  "snapshot": "2026-09-12",
+  "description": "Episode catalog snapshot; search availability is checked against the live local index.",
+  "episodes": [
+    {
+      "id": "46P1rL0rzPE",
+      "title": "Smriti Mandhana On Controlling Emotions, Handling Pressure & Failures | FO561 Raj Shamani",
+      "display_title": "Smriti Mandhana On Controlling Emotions, Handling Pressure & Failures",
+      "episode": 561,
+      "topic": "Life & perspective",
+      "url": "https://www.youtube.com/watch?v=46P1rL0rzPE",
+      "thumbnail": "https://i.ytimg.com/vi/46P1rL0rzPE/hqdefault.jpg",
+      "guest": "Smriti Mandhana",
+      "role": "Cricketer",
+      "headline": "Keeping your head when the pressure is on."
+    },
+    {
+      "id": "x63HCoDfAhQ",
+      "title": "Ex-ADC To President Of India: Security, VIP Protocols & Defence | Major Rishabh | FO560 Raj Shamani",
+      "display_title": "Ex-ADC To President Of India: Security, VIP Protocols & Defence | Major Rishabh",
+      "episode": 560,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=x63HCoDfAhQ",
+      "thumbnail": "https://i.ytimg.com/vi/x63HCoDfAhQ/hqdefault.jpg"
+    },
+    {
+      "id": "4Vz6L8B73i4",
+      "title": "Neuroscientist's Guide To 10X Your Focus & Memory | Dr Sahar Yousef | FO559 Raj Shamani",
+      "display_title": "Neuroscientist's Guide To 10X Your Focus & Memory | Dr Sahar Yousef",
+      "episode": 559,
+      "topic": "Mind & body",
+      "url": "https://www.youtube.com/watch?v=4Vz6L8B73i4",
+      "thumbnail": "https://i.ytimg.com/vi/4Vz6L8B73i4/hqdefault.jpg",
+      "guest": "Dr. Sahar Yousef",
+      "role": "Neuroscientist",
+      "headline": "Give your attention a better home."
+    },
+    {
+      "id": "XwawXRaNfzM",
+      "title": "Top CTO's Advice: The Real Reason You Are Not Growing | Sauvik Banerjjee | FO558 Raj Shamani",
+      "display_title": "Top CTO's Advice: The Real Reason You Are Not Growing | Sauvik Banerjjee",
+      "episode": 558,
+      "topic": "Work & ambition",
+      "url": "https://www.youtube.com/watch?v=XwawXRaNfzM",
+      "thumbnail": "https://i.ytimg.com/vi/XwawXRaNfzM/hqdefault.jpg",
+      "guest": "Sauvik Banerjjee",
+      "role": "Technology leader",
+      "headline": "What could be holding your career back?"
+    },
+    {
+      "id": "LqY6hFLMEJw",
+      "title": "How AI Makes Him Crores: Second Brain, Automations & Systems | Vaibhav Sisinty | FO557 Raj Shamani",
+      "display_title": "How AI Makes Him Crores: Second Brain, Automations & Systems | Vaibhav Sisinty",
+      "episode": 557,
+      "topic": "Work & ambition",
+      "url": "https://www.youtube.com/watch?v=LqY6hFLMEJw",
+      "thumbnail": "https://i.ytimg.com/vi/LqY6hFLMEJw/hqdefault.jpg"
+    },
+    {
+      "id": "Y566_T-YlNQ",
+      "title": "Andrew Huberman: Become Mentally Dangerous With These Daily Habits | FO556 Raj Shamani",
+      "display_title": "Andrew Huberman: Become Mentally Dangerous With These Daily Habits",
+      "episode": 556,
+      "topic": "Mind & body",
+      "url": "https://www.youtube.com/watch?v=Y566_T-YlNQ",
+      "thumbnail": "https://i.ytimg.com/vi/Y566_T-YlNQ/hqdefault.jpg",
+      "guest": "Andrew Huberman",
+      "role": "Neuroscientist",
+      "headline": "The science of a better everyday.",
+      "portrait": "/media/huberman.png"
+    },
+    {
+      "id": "GKn7ywUpB6c",
+      "title": "Why Is Watchmaking So Difficult? The Business Behind Luxury | Gaurav Mehta | FO555 Raj Shamani",
+      "display_title": "Why Is Watchmaking So Difficult? The Business Behind Luxury | Gaurav Mehta",
+      "episode": 555,
+      "topic": "Business & money",
+      "url": "https://www.youtube.com/watch?v=GKn7ywUpB6c",
+      "thumbnail": "https://i.ytimg.com/vi/GKn7ywUpB6c/hqdefault.jpg"
+    },
+    {
+      "id": "Lpan7Kd3Mnc",
+      "title": "World Leader At 31: How Sebastian Kurz Became Austria’s Chancellor | FO554 Raj Shamani",
+      "display_title": "World Leader At 31: How Sebastian Kurz Became Austria’s Chancellor",
+      "episode": 554,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=Lpan7Kd3Mnc",
+      "thumbnail": "https://i.ytimg.com/vi/Lpan7Kd3Mnc/hqdefault.jpg"
+    },
+    {
+      "id": "JWPrgCbUwC8",
+      "title": "Sanjiv Goenka On Billionaires, The Next Big Opportunities & Building Wealth | FO553 Raj Shamani",
+      "display_title": "Sanjiv Goenka On Billionaires, The Next Big Opportunities & Building Wealth",
+      "episode": 553,
+      "topic": "Business & money",
+      "url": "https://www.youtube.com/watch?v=JWPrgCbUwC8",
+      "thumbnail": "https://i.ytimg.com/vi/JWPrgCbUwC8/hqdefault.jpg",
+      "guest": "Sanjiv Goenka",
+      "role": "Entrepreneur",
+      "headline": "Spotting the next big opportunity."
+    },
+    {
+      "id": "eOFLyP5SOEQ",
+      "title": "Why This Generation Is In Worse Health Than The Last | Deepak Sahni | FO552 Raj Shamani",
+      "display_title": "Why This Generation Is In Worse Health Than The Last | Deepak Sahni",
+      "episode": 552,
+      "topic": "Mind & body",
+      "url": "https://www.youtube.com/watch?v=eOFLyP5SOEQ",
+      "thumbnail": "https://i.ytimg.com/vi/eOFLyP5SOEQ/hqdefault.jpg"
+    },
+    {
+      "id": "9CADz6sP40I",
+      "title": "The Most Expensive Cars Compete On Emotion, Not Engineering | Frank Walliser | FO551 Raj Shamani",
+      "display_title": "The Most Expensive Cars Compete On Emotion, Not Engineering | Frank Walliser",
+      "episode": 551,
+      "topic": "Life & perspective",
+      "url": "https://www.youtube.com/watch?v=9CADz6sP40I",
+      "thumbnail": "https://i.ytimg.com/vi/9CADz6sP40I/hqdefault.jpg"
+    },
+    {
+      "id": "zN_lhtJFsgg",
+      "title": "How Osama Bin Laden Built a Terror Network & 9/11 | Aimen Dean | FO550 Raj Shamani",
+      "display_title": "How Osama Bin Laden Built a Terror Network & 9/11 | Aimen Dean",
+      "episode": 550,
+      "topic": "Life & perspective",
+      "url": "https://www.youtube.com/watch?v=zN_lhtJFsgg",
+      "thumbnail": "https://i.ytimg.com/vi/zN_lhtJFsgg/hqdefault.jpg"
+    },
+    {
+      "id": "YMTJw1G3yOM",
+      "title": "Habits That Make People Dislike You ! The 4 Boxes You're Put In | Mark Bowden | FO549 Raj Shamani",
+      "display_title": "Habits That Make People Dislike You ! The 4 Boxes You're Put In | Mark Bowden",
+      "episode": 549,
+      "topic": "Life & perspective",
+      "url": "https://www.youtube.com/watch?v=YMTJw1G3yOM",
+      "thumbnail": "https://i.ytimg.com/vi/YMTJw1G3yOM/hqdefault.jpg"
+    },
+    {
+      "id": "h-0u0ui8ESQ",
+      "title": "9 Titles in One Year: How Anahat Singh Became World Champion at 18 | FO548 Raj Shamani",
+      "display_title": "9 Titles in One Year: How Anahat Singh Became World Champion at 18",
+      "episode": 548,
+      "topic": "Life & perspective",
+      "url": "https://www.youtube.com/watch?v=h-0u0ui8ESQ",
+      "thumbnail": "https://i.ytimg.com/vi/h-0u0ui8ESQ/hqdefault.jpg"
+    },
+    {
+      "id": "ywd-Ve8a8Tc",
+      "title": "World Order Is a Lie: The Next 50 Years Will Change Everything  | Prof. Jiang | FO547 Raj Shamani",
+      "display_title": "World Order Is a Lie: The Next 50 Years Will Change Everything  | Prof. Jiang",
+      "episode": 547,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=ywd-Ve8a8Tc",
+      "thumbnail": "https://i.ytimg.com/vi/ywd-Ve8a8Tc/hqdefault.jpg"
+    },
+    {
+      "id": "czkPKQ9VIU8",
+      "title": "How To Build & Scale a Brand: Walmart, Retail & Product Strategy | Puneet Nanda | FO546 Raj Shamani",
+      "display_title": "How To Build & Scale a Brand: Walmart, Retail & Product Strategy | Puneet Nanda",
+      "episode": 546,
+      "topic": "Business & money",
+      "url": "https://www.youtube.com/watch?v=czkPKQ9VIU8",
+      "thumbnail": "https://i.ytimg.com/vi/czkPKQ9VIU8/hqdefault.jpg"
+    },
+    {
+      "id": "zSkxqtTbEGU",
+      "title": "Top Geopolitical Expert: Why America Is No Longer The World's Leader | Ian Bremmer|FO545 Raj Shamani",
+      "display_title": "Top Geopolitical Expert: Why America Is No Longer The World's Leader | Ian Bremmer",
+      "episode": 545,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=zSkxqtTbEGU",
+      "thumbnail": "https://i.ytimg.com/vi/zSkxqtTbEGU/hqdefault.jpg"
+    },
+    {
+      "id": "QPXJ3VL7Li4",
+      "title": "Former CIA Agent's Warning: China Doesn't Need A War To Beat America |John Sipher |FO544 Raj Shamani",
+      "display_title": "Former CIA Agent's Warning: China Doesn't Need A War To Beat America |John Sipher",
+      "episode": 544,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=QPXJ3VL7Li4",
+      "thumbnail": "https://i.ytimg.com/vi/QPXJ3VL7Li4/hqdefault.jpg"
+    },
+    {
+      "id": "5pZuXAUke9w",
+      "title": "Why Fraud Calls Work: The Psychology of Trust & Authority | Sunil Bajpai | FO543 Raj Shamani",
+      "display_title": "Why Fraud Calls Work: The Psychology of Trust & Authority | Sunil Bajpai",
+      "episode": 543,
+      "topic": "Work & ambition",
+      "url": "https://www.youtube.com/watch?v=5pZuXAUke9w",
+      "thumbnail": "https://i.ytimg.com/vi/5pZuXAUke9w/hqdefault.jpg"
+    },
+    {
+      "id": "H8VLl6Y77NQ",
+      "title": "Foreign Affairs Expert: The Hidden Rules That Control The World | Sreeram Chaulia |FO542 Raj Shamani",
+      "display_title": "Foreign Affairs Expert: The Hidden Rules That Control The World | Sreeram Chaulia",
+      "episode": 542,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=H8VLl6Y77NQ",
+      "thumbnail": "https://i.ytimg.com/vi/H8VLl6Y77NQ/hqdefault.jpg"
+    },
+    {
+      "id": "t8sS6Lk3cYo",
+      "title": "Psychiatrist Explains: Psychology Behind Cheating & Choosing Wrong Partner |Dr. K |FO541 Raj Shamani",
+      "display_title": "Psychiatrist Explains: Psychology Behind Cheating & Choosing Wrong Partner |Dr. K",
+      "episode": 541,
+      "topic": "Mind & body",
+      "url": "https://www.youtube.com/watch?v=t8sS6Lk3cYo",
+      "thumbnail": "https://i.ytimg.com/vi/t8sS6Lk3cYo/hqdefault.jpg"
+    },
+    {
+      "id": "5UTkieEX-bA",
+      "title": "Money Trap: Why More Money Won’t Make You Rich & How to Escape | Alok Sama | FO540 Raj Shamani",
+      "display_title": "Money Trap: Why More Money Won’t Make You Rich & How to Escape | Alok Sama",
+      "episode": 540,
+      "topic": "Business & money",
+      "url": "https://www.youtube.com/watch?v=5UTkieEX-bA",
+      "thumbnail": "https://i.ytimg.com/vi/5UTkieEX-bA/hqdefault.jpg"
+    },
+    {
+      "id": "jr0k_fOR1b0",
+      "title": "Truth About India's Tax System: Why Honest Taxpayers Get Punished | Mohandas Pai | FO539 Raj Shamani",
+      "display_title": "Truth About India's Tax System: Why Honest Taxpayers Get Punished | Mohandas Pai",
+      "episode": 539,
+      "topic": "Work & ambition",
+      "url": "https://www.youtube.com/watch?v=jr0k_fOR1b0",
+      "thumbnail": "https://i.ytimg.com/vi/jr0k_fOR1b0/hqdefault.jpg"
+    },
+    {
+      "id": "X1Q0ZCcPiC8",
+      "title": "The Real Satinder Sartaaj: Sufi Music, Punjabi Culture & Life Beyond Fame | FO538 Raj Shamani",
+      "display_title": "The Real Satinder Sartaaj: Sufi Music, Punjabi Culture & Life Beyond Fame",
+      "episode": 538,
+      "topic": "Life & perspective",
+      "url": "https://www.youtube.com/watch?v=X1Q0ZCcPiC8",
+      "thumbnail": "https://i.ytimg.com/vi/X1Q0ZCcPiC8/hqdefault.jpg"
+    },
+    {
+      "id": "PXMyK7JxGOk",
+      "title": "Billion-Dollar Founder: Why Success In India Is So Hard | Kiran Mazumdar-Shaw | FO537 Raj Shamani",
+      "display_title": "Billion-Dollar Founder: Why Success In India Is So Hard | Kiran Mazumdar-Shaw",
+      "episode": 537,
+      "topic": "Business & money",
+      "url": "https://www.youtube.com/watch?v=PXMyK7JxGOk",
+      "thumbnail": "https://i.ytimg.com/vi/PXMyK7JxGOk/hqdefault.jpg",
+      "guest": "Kiran Mazumdar-Shaw",
+      "role": "Entrepreneur",
+      "headline": "What it takes to build something that lasts."
+    },
+    {
+      "id": "a3UVcK612iU",
+      "title": "Astronaut Shubhanshu Shukla On Space, ISS, Zero Gravity & Human Body | FO536 Raj Shamani",
+      "display_title": "Astronaut Shubhanshu Shukla On Space, ISS, Zero Gravity & Human Body",
+      "episode": 536,
+      "topic": "Life & perspective",
+      "url": "https://www.youtube.com/watch?v=a3UVcK612iU",
+      "thumbnail": "https://i.ytimg.com/vi/a3UVcK612iU/hqdefault.jpg"
+    },
+    {
+      "id": "TrPEIepZGx8",
+      "title": "Top Investor's WARNING: End Of Middle Class Dreams & Loan Trap |Saurabh Mukherjea |FO535 Raj Shamani",
+      "display_title": "Top Investor's WARNING: End Of Middle Class Dreams & Loan Trap |Saurabh Mukherjea",
+      "episode": 535,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=TrPEIepZGx8",
+      "thumbnail": "https://i.ytimg.com/vi/TrPEIepZGx8/hqdefault.jpg"
+    },
+    {
+      "id": "6jBaJkwfL1s",
+      "title": "Why Indians Get Diabetes So Young: Sugar, Diet & Genetics | Dr. V Mohan | FO534 Raj Shamani",
+      "display_title": "Why Indians Get Diabetes So Young: Sugar, Diet & Genetics | Dr. V Mohan",
+      "episode": 534,
+      "topic": "Mind & body",
+      "url": "https://www.youtube.com/watch?v=6jBaJkwfL1s",
+      "thumbnail": "https://i.ytimg.com/vi/6jBaJkwfL1s/hqdefault.jpg"
+    },
+    {
+      "id": "GnCdluU-EIs",
+      "title": "Secrets Of Ultra Rich: Wealth Formula & Billion-Dollar Bets | Srini Sriniwasan | FO533 Raj Shamani",
+      "display_title": "Secrets Of Ultra Rich: Wealth Formula & Billion-Dollar Bets | Srini Sriniwasan",
+      "episode": 533,
+      "topic": "Business & money",
+      "url": "https://www.youtube.com/watch?v=GnCdluU-EIs",
+      "thumbnail": "https://i.ytimg.com/vi/GnCdluU-EIs/hqdefault.jpg"
+    },
+    {
+      "id": "N_eeQVXZOeo",
+      "title": "Mumbai Floods, BMC, Metro, Potholes & How A City Really Works | Ms Ashwini Bhide | FO532 Raj Shamani",
+      "display_title": "Mumbai Floods, BMC, Metro, Potholes & How A City Really Works | Ms Ashwini Bhide",
+      "episode": 532,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=N_eeQVXZOeo",
+      "thumbnail": "https://i.ytimg.com/vi/N_eeQVXZOeo/hqdefault.jpg"
+    },
+    {
+      "id": "1S73MBFacFE",
+      "title": "Dark Side of Manipur: China War, Myanmar & Northeast Insurgency | Major Digvijay | FO531 Raj Shamani",
+      "display_title": "Dark Side of Manipur: China War, Myanmar & Northeast Insurgency | Major Digvijay",
+      "episode": 531,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=1S73MBFacFE",
+      "thumbnail": "https://i.ytimg.com/vi/1S73MBFacFE/hqdefault.jpg"
+    },
+    {
+      "id": "7C8vFzRv8dg",
+      "title": "Comedian Hasan Minhaj on The American Dream, Stand-Up, Identity & Global Fame | FO530 Raj Shamani",
+      "display_title": "Comedian Hasan Minhaj on The American Dream, Stand-Up, Identity & Global Fame",
+      "episode": 530,
+      "topic": "Life & perspective",
+      "url": "https://www.youtube.com/watch?v=7C8vFzRv8dg",
+      "thumbnail": "https://i.ytimg.com/vi/7C8vFzRv8dg/hqdefault.jpg"
+    },
+    {
+      "id": "o-h3STaeFro",
+      "title": "Why Banks Are Dying: Bitcoin, Crypto & De-dollarisation Explained | Richard Teng | FO529 Raj Shamani",
+      "display_title": "Why Banks Are Dying: Bitcoin, Crypto & De-dollarisation Explained | Richard Teng",
+      "episode": 529,
+      "topic": "Business & money",
+      "url": "https://www.youtube.com/watch?v=o-h3STaeFro",
+      "thumbnail": "https://i.ytimg.com/vi/o-h3STaeFro/hqdefault.jpg"
+    },
+    {
+      "id": "9g_O05YEKQs",
+      "title": "FIFA World Cup, Football Corruption, ISL & Talent System | Ranjit Bajaj | FO528 Raj Shamani",
+      "display_title": "FIFA World Cup, Football Corruption, ISL & Talent System | Ranjit Bajaj",
+      "episode": 528,
+      "topic": "Life & perspective",
+      "url": "https://www.youtube.com/watch?v=9g_O05YEKQs",
+      "thumbnail": "https://i.ytimg.com/vi/9g_O05YEKQs/hqdefault.jpg"
+    },
+    {
+      "id": "0TBjnUfulGw",
+      "title": "Inside India's Supreme Court: Money, Justice & Free Speech | DY Chandrachud | FO527 Raj Shamani",
+      "display_title": "Inside India's Supreme Court: Money, Justice & Free Speech | DY Chandrachud",
+      "episode": 527,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=0TBjnUfulGw",
+      "thumbnail": "https://i.ytimg.com/vi/0TBjnUfulGw/hqdefault.jpg"
+    },
+    {
+      "id": "E-F5XJ2jJ1k",
+      "title": "India-US Relations, China Competition & India’s Superpower Strategy | Dr. Samir | FO526 Raj Shamani",
+      "display_title": "India-US Relations, China Competition & India’s Superpower Strategy | Dr. Samir",
+      "episode": 526,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=E-F5XJ2jJ1k",
+      "thumbnail": "https://i.ytimg.com/vi/E-F5XJ2jJ1k/hqdefault.jpg"
+    },
+    {
+      "id": "UVkmS2WTfFo",
+      "title": "Why Modern Dating Is Broken: AI Partners, Marriage & Love | Sandeep Das | FO525 Raj Shamani",
+      "display_title": "Why Modern Dating Is Broken: AI Partners, Marriage & Love | Sandeep Das",
+      "episode": 525,
+      "topic": "Life & perspective",
+      "url": "https://www.youtube.com/watch?v=UVkmS2WTfFo",
+      "thumbnail": "https://i.ytimg.com/vi/UVkmS2WTfFo/hqdefault.jpg"
+    },
+    {
+      "id": "9IxevWyzIhM",
+      "title": "How He Built World's Largest Spice Empire, Supplying Nestle & PepsiCo | Dr. Viju | FO524 Raj Shamani",
+      "display_title": "How He Built World's Largest Spice Empire, Supplying Nestle & PepsiCo | Dr. Viju",
+      "episode": 524,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=9IxevWyzIhM",
+      "thumbnail": "https://i.ytimg.com/vi/9IxevWyzIhM/hqdefault.jpg"
+    },
+    {
+      "id": "NGV5S9j_oL4",
+      "title": "Russian Spy: Dark Reality of Mind Control, Seduction & Manipulation | Aliia Roza | FO523 Raj Shamani",
+      "display_title": "Russian Spy: Dark Reality of Mind Control, Seduction & Manipulation | Aliia Roza",
+      "episode": 523,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=NGV5S9j_oL4",
+      "thumbnail": "https://i.ytimg.com/vi/NGV5S9j_oL4/hqdefault.jpg"
+    },
+    {
+      "id": "YVlWj1LCv54",
+      "title": "Harvard MBA in 100 Minutes: Career Growth, Frameworks, Money & Skills | Ashwin | FO522 Raj Shamani",
+      "display_title": "Harvard MBA in 100 Minutes: Career Growth, Frameworks, Money & Skills | Ashwin",
+      "episode": 522,
+      "topic": "Work & ambition",
+      "url": "https://www.youtube.com/watch?v=YVlWj1LCv54",
+      "thumbnail": "https://i.ytimg.com/vi/YVlWj1LCv54/hqdefault.jpg",
+      "guest": "Ashwin",
+      "role": "Career & business conversation",
+      "headline": "A fresh perspective on your next career move."
+    },
+    {
+      "id": "qt2XslRMOto",
+      "title": "Nobel Laureate Explains India’s Economy, Poverty, GDP & AI | Abhijit Banerjee | FO521 Raj Shamani",
+      "display_title": "Nobel Laureate Explains India’s Economy, Poverty, GDP & AI | Abhijit Banerjee",
+      "episode": 521,
+      "topic": "Work & ambition",
+      "url": "https://www.youtube.com/watch?v=qt2XslRMOto",
+      "thumbnail": "https://i.ytimg.com/vi/qt2XslRMOto/hqdefault.jpg"
+    },
+    {
+      "id": "6FNRVY2vYXw",
+      "title": "Inside India's Bureaucracy: UPSC, IAS, Corruption & Political Power | Amit Kilhor |FO520 Raj Shamani",
+      "display_title": "Inside India's Bureaucracy: UPSC, IAS, Corruption & Political Power | Amit Kilhor",
+      "episode": 520,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=6FNRVY2vYXw",
+      "thumbnail": "https://i.ytimg.com/vi/6FNRVY2vYXw/hqdefault.jpg"
+    },
+    {
+      "id": "uokt0pavxhM",
+      "title": "Secret Handwriting Tricks For Wealth, Better Sex & Success | Imran Baig | FO519 Raj Shamani",
+      "display_title": "Secret Handwriting Tricks For Wealth, Better Sex & Success | Imran Baig",
+      "episode": 519,
+      "topic": "Business & money",
+      "url": "https://www.youtube.com/watch?v=uokt0pavxhM",
+      "thumbnail": "https://i.ytimg.com/vi/uokt0pavxhM/hqdefault.jpg"
+    },
+    {
+      "id": "lacFcgcHx6I",
+      "title": "Top Brain Scientist: Billionaire Brain, Anxiety & Addictions | Vidita Vaidya | FO518 Raj Shamani",
+      "display_title": "Top Brain Scientist: Billionaire Brain, Anxiety & Addictions | Vidita Vaidya",
+      "episode": 518,
+      "topic": "Business & money",
+      "url": "https://www.youtube.com/watch?v=lacFcgcHx6I",
+      "thumbnail": "https://i.ytimg.com/vi/lacFcgcHx6I/hqdefault.jpg"
+    },
+    {
+      "id": "sGpc8-f2e8U",
+      "title": "⁠Imtiaz Ali On Love, Heartbreak, Rockstar, Tamasha & Bollywood Filmmaking | FO517 Raj Shamani",
+      "display_title": "⁠Imtiaz Ali On Love, Heartbreak, Rockstar, Tamasha & Bollywood Filmmaking",
+      "episode": 517,
+      "topic": "Life & perspective",
+      "url": "https://www.youtube.com/watch?v=sGpc8-f2e8U",
+      "thumbnail": "https://i.ytimg.com/vi/sGpc8-f2e8U/hqdefault.jpg",
+      "guest": "Imtiaz Ali",
+      "role": "Filmmaker",
+      "headline": "Making sense of love, life and the stories we tell."
+    },
+    {
+      "id": "sdMHVIcPGwg",
+      "title": "Liquor License, Alcohol Tax & Liquor Business Secrets in India | Mokksh Sani | FO516 Raj Shamani",
+      "display_title": "Liquor License, Alcohol Tax & Liquor Business Secrets in India | Mokksh Sani",
+      "episode": 516,
+      "topic": "Business & money",
+      "url": "https://www.youtube.com/watch?v=sdMHVIcPGwg",
+      "thumbnail": "https://i.ytimg.com/vi/sdMHVIcPGwg/hqdefault.jpg"
+    },
+    {
+      "id": "m7v7KLttM3k",
+      "title": "Why USA Attacks Countries: Navy SEAL Breaks Down Iran, Iraq & War | Jason Redman | FO515 Raj Shamani",
+      "display_title": "Why USA Attacks Countries: Navy SEAL Breaks Down Iran, Iraq & War | Jason Redman",
+      "episode": 515,
+      "topic": "World & society",
+      "url": "https://www.youtube.com/watch?v=m7v7KLttM3k",
+      "thumbnail": "https://i.ytimg.com/vi/m7v7KLttM3k/hqdefault.jpg"
+    },
+    {
+      "id": "kKNoBH0iE1k",
+      "title": "How To Grow Your Salary To ₹1 Crore Using AI | Vaibhav Sisinty | FO514 Raj Shamani",
+      "display_title": "How To Grow Your Salary To ₹1 Crore Using AI | Vaibhav Sisinty",
+      "episode": 514,
+      "topic": "Work & ambition",
+      "url": "https://www.youtube.com/watch?v=kKNoBH0iE1k",
+      "thumbnail": "https://i.ytimg.com/vi/kKNoBH0iE1k/hqdefault.jpg"
+    },
+    {
+      "id": "phCov5GMOl4",
+      "title": "NEET, Medical Colleges, Doctor Salaries & Organ Trafficking | Dr. Nachiket | FO513 Raj Shamani",
+      "display_title": "NEET, Medical Colleges, Doctor Salaries & Organ Trafficking | Dr. Nachiket",
+      "episode": 513,
+      "topic": "Work & ambition",
+      "url": "https://www.youtube.com/watch?v=phCov5GMOl4",
+      "thumbnail": "https://i.ytimg.com/vi/phCov5GMOl4/hqdefault.jpg"
+    },
+    {
+      "id": "JCOb1w_LTOg",
+      "title": "Champion Mindset Explained: High Performance, Discipline & Obsession | Chris | FO512 Raj Shamani",
+      "display_title": "Champion Mindset Explained: High Performance, Discipline & Obsession | Chris",
+      "episode": 512,
+      "topic": "Life & perspective",
+      "url": "https://www.youtube.com/watch?v=JCOb1w_LTOg",
+      "thumbnail": "https://i.ytimg.com/vi/JCOb1w_LTOg/hqdefault.jpg"
+    }
+  ]
+}

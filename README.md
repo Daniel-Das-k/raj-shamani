@@ -1,5 +1,47 @@
 # Knowledge Retriever
 
+## Figuring Out reader
+
+The browser now opens an editorial discovery experience with real episodes from
+the committed `INDEXED_VIDEOS.md` snapshot. It includes topic and title search,
+episode playback, and named collections stored in this browser's local storage.
+The snapshot is a browsing catalog; it does not mark any video as searchable.
+Original captions and provider configuration are still required for checked answers.
+
+When connected, questions use `POST /api/ask/stream`. The server sends original
+retrieved excerpts before the final checked answer, using newline-delimited JSON.
+Interim excerpts are explicitly labelled as awaiting relevance checks. The final
+response uses the existing evidence-verification pipeline and is saved to response
+history. The JSON `/api/ask` endpoint remains available. A remote Supermemory search
+failure falls back to local keyword retrieval when the original captions exist.
+
+The answer view includes an adjacent source player, original-caption disclosure,
+timestamp links, and saved moments. Playback uses YouTube; individual videos may
+have embedding or availability restrictions. Collections are local to the browser,
+while past questions remain in `data/responses.sqlite3`.
+
+UI assets: `knowledge/web/index.html`, `reader.css`, `reader.js`, `catalog.json`.
+Asset provenance is in `knowledge/web/MEDIA.md`. The previous browser script and
+styles remain in the repository for the historical regression suite.
+
+### Verify the reader
+
+With the local Python server running and Google Chrome installed:
+
+```bash
+npm ci
+npm run test:reader
+python -m unittest discover -s tests -p 'test_*.py'
+```
+
+Set `APP_URL` for a different local server URL or `CHROME_PATH` for another Chrome
+executable. The browser check uses an isolated browser context, real catalog data,
+and simulated provider responses; it never makes a paid answer request. Screenshots
+are saved under `data/reader-check/`. `npm test` runs the earlier browser-script
+regressions. Live answer accuracy and latency require the original dataset and keys.
+
+---
+
 Find useful moments in Raj Shamani's indexed videos. Describe a question or situation
 and get one concise reply based on the retrieved passages, followed by summaries of
 useful video moments, their relevance and limitations, and timestamp links to watch.

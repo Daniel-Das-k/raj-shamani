@@ -162,7 +162,14 @@ def handler_for(demo: Demo):
                 return
             path = urlparse(self.path).path
             assets = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascript"),
-                      "/style.css": ("style.css", "text/css")}
+                      "/style.css": ("style.css", "text/css"),
+                      "/mac.css": ("mac.css", "text/css"),
+                      "/reader.css": ("reader.css", "text/css"),
+                      "/reader.js": ("reader.js", "text/javascript"),
+                      "/catalog.json": ("catalog.json", "application/json"),
+                      "/media/huberman.png": ("media/huberman.png", "image/png"),
+                      "/favicon.svg": ("favicon.svg", "image/svg+xml"),
+                      "/geist-latin.woff2": ("geist-latin.woff2", "font/woff2")}
             try:
                 if path == "/api/status":
                     load_settings()
@@ -181,7 +188,7 @@ def handler_for(demo: Demo):
                     self.send_data(record if record else {"error": "Saved response not found."}, 200 if record else 404)
                 elif path in assets:
                     filename, kind = assets[path]
-                    self.send_body((STATIC / filename).read_bytes(), kind + "; charset=utf-8")
+                    self.send_body((STATIC / filename).read_bytes(), kind + "; charset=utf-8" if kind.startswith("text/") else kind)
                 else:
                     self.send_data({"error": "Not found"}, 404)
             except ValueError as exc:
@@ -217,6 +224,8 @@ def handler_for(demo: Demo):
                     self.send_data(demo.add_channel(payload.get("channel_id")), 202)
                 elif path == "/api/channels/action":
                     self.send_data(demo.action(payload.get("channel_id"), payload.get("action")))
+                elif path == "/api/ask/stream":
+                    self.stream_answer(payload)
                 elif path == "/api/ask":
                     body, status = recorded_answer(demo, history, payload)
                     self.send_data(body, status)
@@ -231,10 +240,36 @@ def handler_for(demo: Demo):
                 self.send_data({"error": str(exc)}, 400)
             except Exception as exc:
                 self.send_data({"error": safe_error(exc)}, 500)
+        def stream_answer(self, payload):
+            # A finite newline-delimited stream: source excerpts precede synthesis.
+            # Answers still pass through the same verifier and history recording.
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.close_connection = True
+            connected = True
+
+            def emit(event):
+                nonlocal connected
+                if not connected:
+                    return
+                try:
+                    self.wfile.write((json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8"))
+                    self.wfile.flush()
+                except OSError:
+                    # Finish recording the already-started answer after disconnect.
+                    connected = False
+
+            body, status = recorded_answer(demo, history, payload, progress=emit)
+            emit({"type": "answer", "response": body, "http_status": status})
+
     return Handler
 
 
-def recorded_answer(demo, history, payload):
+def recorded_answer(demo, history, payload, *, progress=None):
     started = time.monotonic()
     record = {"id": uuid4().hex, "created_at": datetime.now(timezone.utc).isoformat(),
               "question": payload.get("question") if isinstance(payload.get("question"), str) else "",
@@ -243,7 +278,8 @@ def recorded_answer(demo, history, payload):
               "model": demo.llm.model_name}
     try:
         if hasattr(demo, "store"):
-            body = demo.answer(payload.get("question"), payload.get("source_id"))
+            options = {"progress": progress} if progress is not None else {}
+            body = demo.answer(payload.get("question"), payload.get("source_id"), **options)
         else:
             body = demo.answer(payload.get("question"))
         status = 200

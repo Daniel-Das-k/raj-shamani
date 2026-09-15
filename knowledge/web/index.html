@@ -1,70 +1,83 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Raj Shamani · Video library</title>
-  <link rel="stylesheet" href="/style.css">
-  <script src="/app.js" defer></script>
+  <meta name="theme-color" content="#f9faf7">
+  <meta name="description" content="Explore the Figuring Out archive. Discover conversations, find original video moments, and build your own collection of ideas.">
+  <title>Figuring Out — Find your perspective</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preload" href="/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/reader.css">
+  <script src="/reader.js" defer></script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/" aria-label="Knowledge Retriever home"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 3h12a2 2 0 0 1 2 2v16H7a3 3 0 0 1-3-3V4a1 1 0 0 1 1-1Z"/><path d="M4 17h15M8 7h7M8 11h5"/></svg>Knowledge Retriever</a>
-    <span id="collection-status" class="muted">Loading library…</span>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <svg class="svg-defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M6 18 18 6M6 6h12v12"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m9 5 11 7-11 7z"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4-6 4z"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5h7l2 2h9v13H3z"/></symbol>
+    <symbol id="i-headphones" viewBox="0 0 24 24"><path d="M4 14v-3a8 8 0 0 1 16 0v3M4 12H2v8h4v-8zm16 0h2v8h-4v-8z"/></symbol>
+  </defs></svg>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="wordmark" href="#discover" aria-label="Figuring Out home"><span>FIGURING<br>OUT<span class="wordmark-dot">.</span></span><small>with Raj Shamani</small></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <button type="button" data-view="discover" aria-current="page">Discover</button>
+        <button type="button" data-view="conversations">Conversations</button>
+        <button type="button" data-view="saved">Your collection <span id="saved-count">0</span></button>
+      </nav>
+      <a class="channel-link" href="https://www.youtube.com/@rajshamani" target="_blank" rel="noopener noreferrer">The podcast <svg class="icon"><use href="#i-up"/></svg></a>
+    </div>
   </header>
-  <main class="workspace">
-    <section class="conversation" aria-labelledby="ask-title">
-      <div class="section-title"><h1 id="ask-title">Explore Raj Shamani’s video library</h1><button id="reset" class="text-button" type="button" hidden>New question</button></div>
-      <p class="intro">Get a clear reply based on the videos, with supporting moments, short summaries, and timestamp links.</p>
-      <form id="question-form">
-        <label for="video-scope">Search in</label>
-        <select id="video-scope"><option value="">All indexed videos</option></select>
-        <label for="question">What would you like to know?</label>
-        <textarea id="question" name="question" rows="4" maxlength="6000" required placeholder="What do these videos say about understanding what customers need? Show me the relevant moments."></textarea>
-        <div class="form-footer"><span>Answers are always in English.</span><button id="ask-button" class="primary" type="submit">Ask library <span aria-hidden="true">↗</span></button></div>
-      </form>
-      <div class="examples" id="examples"><span>Try a question</span><button type="button" data-question="What do these videos say about focus and distractions?">Explain a topic</button><button type="button" data-question="Compare what the videos say about understanding customer needs. Include the supporting moments.">Compare ideas</button><button type="button" data-question="Where do these videos discuss work stress? Include timestamps and video links.">Find a moment</button></div>
-      <p id="request-status" role="status" aria-live="polite" hidden></p>
-      <div id="answer" aria-live="polite"></div>
-      <section id="empty-state" class="empty-state"><svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M6 5h20v17H15l-6 5v-5H6z"/><path d="M11 11h10M11 16h7"/></svg><h2>Find a useful place to start</h2><p>Describe your question or situation. Get a reply grounded in the videos, with related discussions and clear limits when part of your question is not covered.</p></section>
-      <details id="response-history" class="response-history">
-        <summary>Saved responses <span id="history-count"></span></summary>
-        <p class="muted">New questions and responses are recorded locally, including citations and errors.</p>
-        <p id="history-message" class="muted" role="status"></p>
-        <div id="history-list"></div>
-        <div id="history-pagination" class="pagination" hidden><button id="history-newer" type="button" class="text-button">← Newer</button><button id="history-older" type="button" class="text-button">Older →</button></div>
-      </details>
-    </section>
-    <aside class="library" aria-labelledby="library-title">
-      <div class="section-title"><h2 id="library-title">Library</h2><span id="source-count" class="muted"></span></div>
-      <section id="library-videos" aria-labelledby="videos-title">
-        <div class="section-title"><h3 id="videos-title">Indexed videos</h3><span id="video-page-label" class="muted"></span></div>
-        <div id="video-filters" hidden>
-          <p id="video-summary" class="muted" role="status"></p>
-          <label for="video-filter">Show videos</label>
-          <select id="video-filter"><option value="">All videos</option><option value="ready">Indexed — ready to ask</option><option value="pending">Pending</option><option value="attention">Needs attention</option></select>
+  <div id="resume-question" class="resume-question" hidden><button type="button" id="return-to-answer"><span id="resume-label">Return to your question</span><svg class="icon"><use href="#i-arrow"/></svg></button></div>
+  <main id="main" tabindex="-1">
+    <section id="discover-view" class="view page-width">
+      <div class="discovery-hero">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="tiny-line"></span> THE FIGURING OUT ARCHIVE</p>
+          <h1>Find the conversation<br><em>you need.</em></h1>
+          <p class="hero-description">Big ideas. Honest experiences. A different way to see things.<br class="desktop-break"> Explore the conversations with a question of your own.</p>
+          <form id="question-form" class="search-composer">
+            <label class="sr-only" for="question">What are you trying to figure out?</label>
+            <div class="search-input-row"><svg class="icon"><use href="#i-search"/></svg><textarea id="question" name="question" rows="1" maxlength="6000" required placeholder="What are you trying to figure out?"></textarea><button id="ask-button" class="search-submit" type="submit" aria-label="Search the archive"><svg class="icon"><use href="#i-arrow"/></svg></button></div>
+            <div class="search-options"><label for="video-scope">Search in</label><select id="video-scope"><option value="">All conversations</option></select><span id="search-mode">Loading archive…</span></div>
+          </form>
+          <p id="availability-note" class="availability-note" role="status"></p>
+          <div class="question-suggestions"><span>START WITH A QUESTION</span><button type="button" data-question="What do the conversations say about handling pressure?" data-topic="Life & perspective">How do I handle pressure? <span>↗</span></button><button type="button" data-question="How can I improve my focus and memory?" data-topic="Mind & body">How can I focus better? <span>↗</span></button><button type="button" data-question="What do the conversations say about building and scaling a business?" data-topic="Business & money">What does it take to build a business? <span>↗</span></button></div>
+          <div class="archive-note"><span class="overlapping-circles" aria-hidden="true"><i>FO</i><i>↗</i></span><p><strong>Different minds. A world of perspective.</strong><span>Every idea leads back to a real conversation.</span></p></div>
         </div>
-        <div id="source-list" class="source-list" aria-live="polite"></div>
-        <div id="video-pagination" class="pagination" hidden><button id="previous-videos" class="text-button" type="button">← Previous</button><button id="next-videos" class="text-button" type="button">Next →</button></div>
-      </section>
-      <section id="channel-tools" aria-labelledby="channels-title" hidden>
-        <h3 id="channels-title">YouTube channels</h3>
-        <form id="channel-form">
-          <label for="channel-handle">Channel handle or URL</label>
-          <div class="channel-input"><input id="channel-handle" placeholder="@rajshamani" maxlength="250" required autocomplete="off"><button id="find-channel" class="secondary" type="submit">Find</button></div>
-        </form>
-        <p id="channel-message" class="muted" role="status" aria-live="polite"></p>
-        <div id="channel-preview" hidden></div>
-        <div id="channel-list"></div>
-        <p class="muted">Long-form videos only; Shorts are excluded. New uploads are checked every 6 hours while the app is running.</p>
-      </section>
-      <button id="process" class="secondary full-width" type="button" hidden>Process videos</button>
-      <p id="ingest-note" role="status" class="muted" hidden></p>
-      <details id="add-source" class="add-source" hidden><summary>Add another video</summary><form id="link-form"><label for="podcast-url">YouTube link</label><input id="podcast-url" name="url" type="url" placeholder="https://www.youtube.com/watch?v=…" required><button id="add-link" class="secondary" type="submit">Add to library</button></form></details>
-      <div id="setup" class="setup" hidden><h3>Setup needed</h3><p id="setup-message"></p><p>The library’s search and answer services need to be configured on the server.</p></div>
-      <div class="source-note"><h3>Follow the evidence</h3><p>Original speech stays intact. Translations are labelled separately, and links open at the cited moment.</p><p>Transcripts and translations are machine generated and may need a listening check.</p></div>
-    </aside>
+        <article class="featured-conversation">
+          <button class="feature-media" type="button" data-play="Y566_T-YlNQ" aria-label="Watch the Andrew Huberman conversation">
+            <img src="/media/huberman.png" width="480" height="480" alt="Andrew Huberman" fetchpriority="high">
+            <span class="feature-topline"><span>IN FOCUS</span><span>EP. 556</span></span>
+            <span class="feature-caption"><span class="feature-name">Andrew Huberman</span><strong>The science of a<br>better everyday.</strong><span class="feature-play"><span class="play-circle"><svg class="icon"><use href="#i-play"/></svg></span>Watch the conversation</span></span>
+          </button>
+          <div class="feature-foot"><span>NEUROSCIENCE · HABITS · FOCUS</span><button type="button" data-save="Y566_T-YlNQ" class="icon-button" aria-label="Save Andrew Huberman conversation"><svg class="icon"><use href="#i-save"/></svg></button></div>
+        </article>
+      </div>
+      <section class="topic-section" aria-labelledby="topic-heading"><div class="section-heading"><div><p class="eyebrow">FOLLOW YOUR CURIOSITY</p><h2 id="topic-heading">What’s on your mind?</h2></div><p>There’s a conversation for that.</p></div><div id="home-topics" class="topic-list"></div></section>
+      <section class="editorial-section" aria-labelledby="picks-heading"><div class="section-heading"><div><p class="eyebrow">A FEW GOOD PLACES TO START</p><h2 id="picks-heading">Perspectives worth your time.</h2></div><button type="button" data-view="conversations" class="text-link">All conversations <svg class="icon"><use href="#i-arrow"/></svg></button></div><div id="editorial-picks" class="editorial-picks"></div></section>
+      <section class="collection-callout"><span class="callout-mark" aria-hidden="true">↗</span><div><p class="eyebrow">MAKE IT YOUR OWN</p><h2>Keep the ideas that stay with you.</h2><p>Save a conversation. Collect a few perspectives. Come back when you need them.</p></div><button type="button" data-view="saved" class="outline-button">Your collection <svg class="icon"><use href="#i-arrow"/></svg></button></section>
+    </section>
+    <section id="conversations-view" class="view page-width" hidden>
+      <div class="page-intro"><p class="eyebrow">THE ARCHIVE</p><h1>Different minds.<br><em>Endless possibilities.</em></h1><p>Find your next conversation by topic, guest, or whatever you’re curious about.</p></div>
+      <form id="catalog-search-form" class="catalog-search"><svg class="icon"><use href="#i-search"/></svg><label class="sr-only" for="catalog-search">Search episodes by title, guest or topic</label><input type="search" id="catalog-search" placeholder="Search a name, topic, or idea…" maxlength="300"><button type="submit" class="text-link">Search <svg class="icon"><use href="#i-arrow"/></svg></button></form>
+      <div id="catalog-topics" class="topic-filters" aria-label="Filter by topic"></div><div class="results-meta"><p id="catalog-count" role="status"></p><button type="button" id="clear-filters" class="text-link" hidden>Clear filters</button></div><div id="catalog-grid" class="catalog-grid"></div><button type="button" id="load-more" class="outline-button load-more" hidden>More conversations <svg class="icon"><use href="#i-plus"/></svg></button>
+    </section>
+    <section id="saved-view" class="view page-width" hidden><div class="page-intro saved-intro"><div><p class="eyebrow">YOUR CORNER OF THE ARCHIVE</p><h1>Ideas to <em>come back to.</em></h1><p>Your conversations and moments, collected in one place. Saved on this device.</p></div><button type="button" id="new-collection" class="outline-button"><svg class="icon"><use href="#i-plus"/></svg>New collection</button></div><div id="collection-tabs" class="topic-filters" aria-label="Choose a collection"></div><div id="saved-grid" class="catalog-grid"></div><section class="history-section"><div class="section-heading"><h2>Your past questions</h2><span>Saved by this local library</span></div><div id="response-history"></div><button id="history-more" type="button" class="text-link" hidden>Older questions <svg class="icon"><use href="#i-arrow"/></svg></button></section></section>
+    <section id="answer-view" class="view page-width" hidden><button type="button" data-view="discover" class="back-link">← Back to discovery</button><p class="eyebrow">YOUR QUESTION</p><div class="answer-heading"><h1 id="asked-question"></h1><button type="button" id="ask-again" class="outline-button">Ask another <svg class="icon"><use href="#i-plus"/></svg></button></div><p id="request-status" class="request-status" role="status" aria-live="polite"></p><div class="answer-layout"><div><div id="answer" aria-live="polite"></div><section id="moments-section" hidden><div class="section-heading"><h2 id="moments-heading">Inside the conversations</h2><span id="moment-count"></span></div><p id="moments-note" class="section-note"></p><div id="moments"></div></section></div><aside id="watch-panel" class="watch-panel" aria-label="Watch the supporting conversation" hidden><div class="watch-label"><span>HEAR IT IN CONTEXT</span><button id="close-watch" type="button" class="icon-button" aria-label="Close supporting video"><svg class="icon"><use href="#i-close"/></svg></button></div><div id="watch-container" class="video-container"></div><div id="watch-details"></div></aside></div></section>
   </main>
-  <dialog id="player-dialog"><div class="player-toolbar"><h2 id="player-title">Podcast excerpt</h2><button id="close-player" class="text-button" type="button" aria-label="Close player">Close ×</button></div><div id="player-container"></div><a id="external-player" target="_blank" rel="noopener noreferrer">Open this moment on YouTube ↗</a></dialog>
+  <footer class="site-footer page-width"><a class="footer-wordmark" href="#discover">FIGURING OUT.</a><p>Real conversations. Your own perspective.</p><button type="button" id="about-button" class="text-link">About this archive <svg class="icon"><use href="#i-up"/></svg></button></footer>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="video-dialog" class="video-dialog"><div class="dialog-heading"><p id="video-title"></p><button id="close-video" type="button" class="icon-button" aria-label="Close video"><svg class="icon"><use href="#i-close"/></svg></button></div><div id="video-container" class="video-container"></div><a id="video-external" class="text-link" target="_blank" rel="noopener noreferrer">Watch on YouTube <svg class="icon"><use href="#i-up"/></svg></a></dialog>
+  <dialog id="save-dialog" class="save-dialog"><div class="dialog-heading"><h2 id="save-heading">Keep this perspective.</h2><button type="button" data-close="save-dialog" class="icon-button" aria-label="Close save dialog"><svg class="icon"><use href="#i-close"/></svg></button></div><p id="save-description"></p><form id="save-form"><label for="collection-select">Add to a collection</label><select id="collection-select"></select><label for="collection-name">Or create a new collection</label><input id="collection-name" maxlength="60" placeholder="e.g. Building my business" autocomplete="off"><p id="save-error" class="form-error" role="alert"></p><button type="submit" class="solid-button" id="confirm-save">Save to collection <svg class="icon"><use href="#i-save"/></svg></button></form><p class="dialog-note">Saved in this browser. No account needed.</p></dialog>
+  <dialog id="about-dialog" class="about-dialog"><div class="dialog-heading"><h2>A living library of ideas.</h2><button type="button" data-close="about-dialog" class="icon-button" aria-label="Close archive information"><svg class="icon"><use href="#i-close"/></svg></button></div><p>Browse real Figuring Out episodes, collect the ones that matter to you, and ask questions when the searchable archive is connected.</p><p id="archive-status"></p><p>Answers are written in English and checked against original captions. An excerpt reflects its speaker’s perspective; it may not answer every part of your question.</p><details><summary>Library connection</summary><p id="connection-details"></p></details><details><summary>Sources & credits</summary><p>The browsing catalog comes from this project’s September 12, 2026 episode snapshot. It is separate from the currently searchable index.</p><p>Featured portrait: <a href="https://hubermanlab.stanford.edu/people/andrew-huberman" target="_blank" rel="noopener noreferrer">Andrew Huberman’s Stanford profile</a>. Episode thumbnails are from YouTube. Typography: Geist.</p><p>A local product concept for Figuring Out.</p></details></dialog>
 </body>
 </html>

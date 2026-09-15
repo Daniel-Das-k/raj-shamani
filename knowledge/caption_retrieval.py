@@ -136,7 +136,7 @@ def retrieve(library, question, source_id=None):
         if not path.exists():
             audit["missing_local_sources"].append(video_id)
             continue
-        source = json.loads(path.read_text())
+        source = json.loads(path.read_text(encoding="utf-8"))
         if source.get("id") != video_id or source.get("revision") != record["revision"]:
             raise ValueError("Saved caption identity or revision differs from the indexed video.")
         sources[video_id] = source
@@ -188,6 +188,10 @@ def retrieve(library, question, source_id=None):
                     audit["rejected_remote_hits"] += 1
                 found.extend(resolved)
             lists.append(found)
+    except Exception as exc:
+        # Validated local captions remain useful when the remote provider is down.
+        # Keep only the error type; provider bodies can contain credentials.
+        audit["remote_error"] = type(exc).__name__
     finally:
         client.session.close()
     lists.extend(lexical_candidates(sources, audit["queries"]))

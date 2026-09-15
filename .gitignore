@@ -9,3 +9,4 @@ review_video.*
 speaker_names.json
 *.pyc
 data/
+node_modules/

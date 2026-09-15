@@ -34,6 +34,22 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual((cite['start'], cite['end']), (0, 6))
         self.assertTrue(cite['url'].endswith('&t=0s'))
 
+    def test_remote_outage_preserves_local_caption_retrieval(self):
+        self.client.search.side_effect = RuntimeError('provider secret must not be logged')
+        result = retrieve(self.library, 'Explain memory')
+        self.assertTrue(result['excerpts'])
+        self.assertEqual(result['retrieval']['remote_error'], 'RuntimeError')
+        self.assertNotIn('provider secret', json.dumps(result))
+        self.client.session.close.assert_called_once()
+
+    def test_caption_files_are_read_as_utf8_on_windows(self):
+        self.source['title'] = 'स्मृति और याददाश्त'
+        path = self.library.directory / f"abcdefghijk-{self.source['revision'][:12]}.json"
+        path.write_text(json.dumps(self.source, ensure_ascii=False), encoding='utf-8')
+        result = retrieve(self.library, 'Explain memory')
+        self.assertTrue(result['excerpts'])
+        self.assertEqual(result['excerpts'][0]['title'], self.source['title'])
+
     def test_guide_retrieval_accepts_useful_background_without_a_direct_answer(self):
         self.library.answer_strategy = 'video_guide'
         result = retrieve(self.library, 'Will recall practice guarantee my exam score?')

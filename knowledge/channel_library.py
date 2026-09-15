@@ -271,12 +271,17 @@ class ChannelLibrary:
     def page(self, offset=0, *, status=""):
         return self.store.page(offset, status=status)
 
-    def answer(self, question, source_id=None):
+    def answer(self, question, source_id=None, *, progress=None):
         if not self.answer_lock.acquire(blocking=False):
             raise ValueError("Another answer is being prepared. Please try again shortly.")
         try:
+            if progress:
+                progress({"type": "stage", "message": "Searching the original conversations…"})
             retrieved = self.search(question, source_id)
             citations = retrieved["excerpts"]
+            if progress and citations:
+                progress({"type": "excerpts", "excerpts": citations,
+                          "message": "Original excerpts found. Checking an answer against them…"})
             sources = {}
             for cite in citations:
                 if cite["source_id"] not in sources:

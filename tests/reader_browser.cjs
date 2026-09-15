@@ -1,0 +1,134 @@
+// The new reader: real browsing plus isolated provider fixtures. No paid requests.
+const {chromium} = require('playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+
+(async () => {
+  const origin = process.env.APP_URL || 'http://127.0.0.1:8000';
+  const output = path.join(__dirname, '../data/reader-check');
+  await fs.mkdir(output, {recursive: true});
+  const browser = await chromium.launch(process.env.CHROME_PATH
+    ? {headless: true, executablePath: process.env.CHROME_PATH}
+    : {headless: true, channel: 'chrome'});
+  try {
+    const page = await browser.newPage({viewport: {width: 1440, height: 1000}, deviceScaleFactor: 1});
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    const overflow = async () => {
+      const bad = await page.evaluate(() => ({width: innerWidth, actual: document.documentElement.scrollWidth, nodes: [...document.querySelectorAll('body *')].filter(el => el.getBoundingClientRect().right > innerWidth + 1 && el.getBoundingClientRect().width > 0).slice(0, 8).map(el => `${el.tagName}.${el.className}`)}));
+      if (bad.actual > bad.width) { console.log(bad); await page.screenshot({path: path.join(output, 'overflow.png'), fullPage: true}); }
+      assert.ok(bad.actual <= bad.width, 'Horizontal overflow');
+    };
+    await page.emulateMedia({reducedMotion: 'reduce'});
+    await page.goto(origin);
+    await page.locator('.editorial-lead').waitFor();
+    await page.waitForFunction(() => document.querySelector('#search-mode').textContent !== 'Loading archive…');
+    await page.evaluate(() => document.fonts.ready);
+    await overflow();
+    assert.equal(await page.locator('.traffic-lights, .app-window').count(), 0);
+    assert.equal(await page.locator('.feature-media img').evaluate(image => image.complete && image.naturalWidth > 0), true);
+    await page.screenshot({path: path.join(output, 'discovery-desktop.png'), fullPage: true});
+
+    await page.getByRole('button', {name: 'Watch the Andrew Huberman conversation', exact: true}).click();
+    assert.match(await page.locator('#video-container iframe').getAttribute('src'), /Y566_T-YlNQ/);
+    await page.getByRole('button', {name: 'Close video', exact: true}).click();
+    assert.equal(await page.locator('#video-container iframe').count(), 0);
+
+    await page.locator('#home-topics button').filter({hasText: 'Mind & body'}).click();
+    assert.equal(await page.locator('#catalog-topics button[aria-pressed=true]').textContent(), 'Mind & body');
+    assert.ok(await page.locator('#catalog-grid .catalog-card').count() > 0);
+    await page.getByRole('button', {name: 'Clear filters', exact: true}).click();
+    assert.equal(await page.locator('#catalog-grid .catalog-card').count(), 12);
+    await page.locator('#load-more').click();
+    assert.equal(await page.locator('#catalog-grid .catalog-card').count(), 24);
+    await page.locator('#catalog-search').fill('Huberman');
+    assert.equal(await page.locator('#catalog-grid .catalog-card').count(), 1);
+    await page.screenshot({path: path.join(output, 'catalog-desktop.png'), fullPage: true});
+
+    await page.locator('#catalog-grid .icon-button').click();
+    await page.locator('#collection-name').fill('Ideas to revisit');
+    await page.locator('#confirm-save').click();
+    assert.match(await page.locator('#toast').textContent(), /Saved to Ideas to revisit/);
+    await page.locator('.main-nav [data-view=saved]').click();
+    assert.equal(await page.locator('#saved-grid .catalog-card').count(), 1);
+    await page.reload();
+    await page.locator('#collection-tabs button').filter({hasText: 'Ideas to revisit'}).click();
+    assert.equal(await page.locator('#saved-grid .catalog-card').count(), 1, 'Saved item survives reload');
+    await page.screenshot({path: path.join(output, 'collection-desktop.png'), fullPage: true});
+    await page.getByRole('button', {name: 'Remove from collection', exact: true}).click();
+    assert.equal(await page.locator('#saved-grid .catalog-card').count(), 0);
+    await page.locator('#new-collection').click();
+    await page.locator('#collection-name').fill('Building my business');
+    await page.locator('#confirm-save').click();
+    assert.ok(await page.locator('#collection-tabs').textContent().then(text => text.includes('Building my business')));
+
+    await page.locator('.main-nav [data-view=discover]').click();
+    await page.waitForFunction(() => document.querySelector('#toast').hidden);
+    for (const width of [390, 320, 768]) {
+      await page.setViewportSize({width, height: 844});
+      await overflow();
+      if (width === 390) await page.screenshot({path: path.join(output, 'discovery-mobile.png'), fullPage: true});
+    }
+    await page.locator('#about-button').click();
+    assert.equal(await page.locator('#about-dialog').evaluate(el => el.open), true);
+    await page.getByRole('button', {name: 'Close archive information', exact: true}).click();
+
+    // Only the following section mocks answer/index availability. Browsing above is real.
+    const video = {id: 'Y566_T-YlNQ', title: 'Andrew Huberman: Daily Habits', state: 'ready'};
+    const citation = {source_id: video.id, title: video.title, start: 100, end: 130, time_range: '01:40–02:10',
+      url: `https://www.youtube.com/watch?v=${video.id}&t=100s`, quote: 'Synthetic fixture: consistent routines can help you focus.'};
+    const answer = {status: 'answered', record_id: 'a'.repeat(32), points: [{text: 'A consistent routine can make it easier to focus.', citations: [citation]}],
+      recommendations: [{match: 'related', summary: 'The excerpt connects everyday routines to focus.', why_relevant: 'It discusses the role of routine.', limitation: 'It does not establish a personal outcome.', citation}]};
+    let requests = 0;
+    await page.route('**/api/status', route => route.fulfill({json: {backend: 'supermemory', read_only: true, credentials: {answers: true, indexing: true}, sources: [video], counts: {ready: 1}, total: 1}}));
+    await page.route('**/api/ask/stream', route => {
+      requests++;
+      assert.equal(route.request().postDataJSON().source_id, video.id);
+      return route.fulfill({contentType: 'application/x-ndjson', body: [
+        {type: 'stage', message: 'Searching original conversations…'},
+        {type: 'excerpts', excerpts: [citation], message: 'Checking the answer…'},
+        {type: 'answer', response: answer, http_status: 200},
+      ].map(x => JSON.stringify(x)).join('\n') + '\n'});
+    });
+    await page.route('**/api/responses?*', route => route.fulfill({json: {total: 1, items: [{id: 'a'.repeat(32), question: 'How can I focus better?', created_at: '2026-09-15T08:00:00Z', status: 'answered'}]}}));
+    await page.route(`**/api/responses/${'a'.repeat(32)}`, route => route.fulfill({json: {question: 'How can I focus better?', response: answer, created_at: '2026-09-15T08:00:00Z'}}));
+    await page.setViewportSize({width: 1440, height: 1000});
+    await page.goto(origin);
+    await page.waitForFunction(() => document.querySelector('#search-mode').textContent === 'Ask the archive');
+    await page.locator('#video-scope').selectOption(video.id);
+    await page.locator('#question').fill('How can I focus better?');
+    await page.locator('#question').press('Enter');
+    await page.locator('.answer-prose').waitFor();
+    assert.equal(await page.locator('.moment').count(), 1);
+    assert.equal(await page.locator('#watch-panel').isVisible(), true);
+    await page.waitForFunction(() => { const image = document.querySelector('#watch-container img'); return image?.complete && image.naturalWidth > 0; });
+    assert.equal(await page.locator('.citation-link').getAttribute('href'), '#moment-1');
+    await overflow();
+    await page.screenshot({path: path.join(output, 'answer-desktop.png'), fullPage: true});
+    await page.getByText('Read the original excerpt', {exact: true}).click();
+    assert.equal(await page.locator('.moment blockquote').textContent(), citation.quote);
+    await page.route('https://www.youtube-nocookie.com/**', route => route.fulfill({contentType: 'text/html', body: '<html><body>Offline player fixture</body></html>'}));
+    await page.getByRole('button', {name: 'Play from 1:40', exact: true}).click();
+    assert.match(await page.locator('#watch-container iframe').getAttribute('src'), /start=100&end=130/);
+    await page.getByRole('button', {name: 'Save this moment', exact: true}).click();
+    await page.locator('#collection-name').fill('Focus');
+    await page.locator('#confirm-save').click();
+    await page.setViewportSize({width: 390, height: 844});
+    await overflow();
+    await page.screenshot({path: path.join(output, 'answer-mobile.png'), fullPage: true});
+    await page.getByRole('button', {name: 'Close supporting video', exact: true}).click();
+    assert.equal(await page.locator('#watch-container iframe').count(), 0);
+    await page.locator('.main-nav [data-view=saved]').click();
+    await page.locator('.history-row button').click();
+    await page.locator('.answer-prose').waitFor();
+    assert.equal(requests, 1, 'History reopening must not generate another answer');
+    await page.locator('#ask-again').click();
+    assert.equal(await page.locator('#question').evaluate(el => document.activeElement === el), true);
+    await page.locator('#return-to-answer').click();
+    assert.equal(await page.locator('.answer-prose').isVisible(), true);
+    assert.equal(requests, 1, 'Returning to the current question must not regenerate it');
+    assert.deepEqual(errors, []);
+    console.log('Reader checks passed: real catalog, playback, filters, pagination, saved collections/reload/removal, mobile 320/390/768, streamed answer fixture, scoped request, citations, original text, docked player, saved moments, history reopening, keyboard submission.');
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });
