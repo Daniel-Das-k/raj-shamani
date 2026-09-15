@@ -56,6 +56,8 @@ const path = require('node:path');
     await page.getByRole('button', {name: 'Watch the Andrew Huberman conversation', exact: true}).click();
     assert.match(await page.locator('#video-container iframe').getAttribute('src'), /Y566_T-YlNQ/);
     await page.getByRole('button', {name: 'Close video', exact: true}).click();
+    // The native dialog queues its close event, which removes the player.
+    await page.locator('#video-container iframe').waitFor({state: 'detached'});
     assert.equal(await page.locator('#video-container iframe').count(), 0);
 
     await page.locator('#home-topics button').filter({hasText: 'Mind & body'}).click();

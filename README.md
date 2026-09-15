@@ -40,6 +40,14 @@ and simulated provider responses; it never makes a paid answer request. Screensh
 are saved under `data/reader-check/`. `npm test` runs the earlier browser-script
 regressions. Live answer accuracy and latency require the original dataset and keys.
 
+The Python server serves both the frontend and API at http://127.0.0.1:8000;
+start it with `.venv/bin/python -m knowledge serve`. No separate frontend server
+or API URL configuration is needed. With the archive and keys available, run
+`npm run test:reader:live` for an opt-in browser check using one real question
+and the configured paid providers. It checks the streamed answer, citations,
+and reopening backend history without another generation request. The exact
+response and a screenshot are saved in `data/reader-live-check/`.
+
 ---
 
 Find useful moments in Raj Shamani's indexed videos. Describe a question or situation
