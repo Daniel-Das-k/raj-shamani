@@ -103,6 +103,11 @@ The reader does not adopt new trial documents or start an import worker. A fresh
 checkout needs the existing local data directory and access to the corresponding
 Supermemory container; indexed data and credentials are not committed to Git.
 
+This repository includes the read-only 50-video catalog and timed-caption snapshot
+under `data/channels.sqlite3` and `data/supermemory-trial/timed-captions/`. These
+files connect cloud retrieval results to video titles and timestamps. Runtime
+response history, screenshots, and evaluation artifacts remain local.
+
 Pending, failed, and unindexed videos are excluded from the reader catalog. There is no automatic paid audio
 transcription fallback. Only provider-completed documents become searchable.
 Caption timestamps are machine-generated segment boundaries, not verified audio

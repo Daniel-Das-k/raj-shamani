@@ -9,4 +9,10 @@ review_video.*
 speaker_names.json
 *.pyc
 data/
+# The reader needs this indexed snapshot to map cloud matches to videos/timestamps.
+!data/
+!data/channels.sqlite3
+!data/supermemory-trial/
+!data/supermemory-trial/timed-captions/
+!data/supermemory-trial/timed-captions/*.json
 node_modules/
