@@ -11,8 +11,17 @@ speaker_names.json
 data/
 # The reader needs this indexed snapshot to map cloud matches to videos/timestamps.
 !data/
+data/*
 !data/channels.sqlite3
 !data/supermemory-trial/
+data/supermemory-trial/*
 !data/supermemory-trial/timed-captions/
+data/supermemory-trial/timed-captions/*
 !data/supermemory-trial/timed-captions/*.json
+data/supermemory-trial/timed-captions/*-pending.json
+data/supermemory-trial/timed-captions/last-search*.json
+data/supermemory-trial/timed-captions/search-*.json
+data/supermemory-trial/timed-captions/sleep-search.json
+data/supermemory-trial/timed-captions/status.json
+*.DS_Store
 node_modules/
