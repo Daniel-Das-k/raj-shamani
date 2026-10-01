@@ -161,7 +161,7 @@ def related_limit(language):
     return 'This excerpt offers related background, but does not establish a complete answer to your question.'
 
 
-def recommend_moments(question, citations, sources, llm, audit=None, **unused):
+def recommend_moments(question, citations, sources, llm, audit=None, *, allow_closest=True, **unused):
     question = nonempty_text(question, 'question', 6000)
     audit = audit if audit is not None else {}
     language = question_language(question)
@@ -178,6 +178,11 @@ def recommend_moments(question, citations, sources, llm, audit=None, **unused):
         response = {'status': status, 'coverage': coverage, 'message': message, 'recommendations': items, 'points': []}
         if items and coverage != 'closest':
             response.update(compose_reply(question, items, llm, audit.setdefault('consolidated_reply', {})))
+            if not allow_closest and not response['points'] and response.get('reply_status') == 'insufficient_evidence':
+                # A topic connection alone does not support an answer to this request.
+                return result([])
+            if not response['points'] and response.get('reply_status') in {'provider_error', 'invalid_evidence'}:
+                response['message'] = 'I could not prepare a checked answer. You can retry, or explore these verified excerpts below.'
             if (not response['points'] and coverage == 'related' and
                     response.get('reply_status') == 'insufficient_evidence'):
                 # A checked related clip may offer context but no answer to synthesize.
@@ -322,7 +327,7 @@ def recommend_moments(question, citations, sources, llm, audit=None, **unused):
         except (ValueError, KeyError, TypeError, AttributeError) as exc:
             failed_support = True
             check['validation_error'] = str(exc)
-    if not selected:
+    if not selected and allow_closest:
         selected = closest_moment(question, readings, citations, llm, language,
                                   audit.setdefault('closest_fallback', {}))
         failed_support = failed_support or not selected

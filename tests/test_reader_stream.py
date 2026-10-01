@@ -1,4 +1,4 @@
-"""Offline HTTP regressions for progressive answers and persistent history."""
+"""Offline HTTP regressions for answer-first streams and persistent history."""
 import json
 from pathlib import Path
 import tempfile
@@ -41,7 +41,9 @@ class ReaderStreamTests(unittest.TestCase):
     def answer(self, question, source_id=None, *, progress=None):
         self.assertEqual(question, "Explain memory")
         progress({"type": "stage", "message": "Searching"})
+        # Even an older retrieval implementation must not publish candidates.
         progress({"type": "excerpts", "excerpts": [self.citation]})
+        progress({"type": "stage", "message": "Preparing your answer", "excerpts": [self.citation]})
         if not self.release.wait(5):
             raise RuntimeError("Test never released synthesis")
         return self.final
@@ -51,12 +53,12 @@ class ReaderStreamTests(unittest.TestCase):
                        data=json.dumps({"question": "Explain memory"}).encode(),
                        headers={"Content-Type": "application/json"})
 
-    def test_excerpts_arrive_before_synthesis_and_final_answer_is_saved(self):
+    def test_only_progress_precedes_synthesis_and_final_answer_is_saved(self):
         with urlopen(self.request(), timeout=5) as response:
             self.assertIn("application/x-ndjson", response.headers["Content-Type"])
             self.assertEqual(json.loads(response.readline())["type"], "stage")
             event = json.loads(response.readline())
-            self.assertEqual(event["excerpts"], [self.citation])
+            self.assertEqual(event, {"type": "stage", "message": "Preparing your answer"})
             self.assertFalse(self.release.is_set())
             self.release.set()
             final = json.loads(response.readline())
@@ -68,6 +70,7 @@ class ReaderStreamTests(unittest.TestCase):
 
     def test_provider_failure_finishes_stream_with_safe_recorded_error(self):
         def fail(*args, **kwargs):
+            kwargs["progress"]({"type": "excerpts", "excerpts": [self.citation]})
             raise RuntimeError("secret-provider-response")
         self.demo.answer = fail
         with urlopen(self.request(), timeout=5) as response:
@@ -75,6 +78,7 @@ class ReaderStreamTests(unittest.TestCase):
         self.assertEqual(final["type"], "answer")
         self.assertEqual(final["http_status"], 500)
         self.assertNotIn("secret-provider-response", json.dumps(final))
+        self.assertNotIn(self.citation["quote"], json.dumps(final))
         self.assertIn("record_id", final["response"])
 
 

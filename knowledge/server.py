@@ -242,8 +242,7 @@ def handler_for(demo: Demo):
             except Exception as exc:
                 self.send_data({"error": safe_error(exc)}, 500)
         def stream_answer(self, payload):
-            # A finite newline-delimited stream: source excerpts precede synthesis.
-            # Answers still pass through the same verifier and history recording.
+            # Only progress text precedes the checked, recorded final response.
             self.send_response(200)
             self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
             self.send_header("Cache-Control", "no-store")
@@ -264,7 +263,12 @@ def handler_for(demo: Demo):
                     # Finish recording the already-started answer after disconnect.
                     connected = False
 
-            body, status = recorded_answer(demo, history, payload, progress=emit)
+            def progress(event):
+                # Retrieval candidates are internal until the answer is checked.
+                if event.get("type") == "stage" and isinstance(event.get("message"), str):
+                    emit({"type": "stage", "message": event["message"]})
+
+            body, status = recorded_answer(demo, history, payload, progress=progress)
             emit({"type": "answer", "response": body, "http_status": status})
 
     return Handler

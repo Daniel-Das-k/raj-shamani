@@ -87,6 +87,14 @@ class RajLibraryTests(unittest.TestCase):
         guide.assert_not_called()
         self.client.search.assert_not_called()
 
+    def test_reader_disables_forced_closest_content(self):
+        self.llm.model_name = 'synthetic-model'
+        self.library.search = Mock(return_value={'excerpts': []})
+        with patch('knowledge.channel_library.recommend_moments', return_value={
+                'status': 'insufficient_evidence', 'points': [], 'recommendations': []}) as guide:
+            self.library.answer('How to cook Maggi?')
+        self.assertFalse(guide.call_args.kwargs['allow_closest'])
+
     def handler(self):
         cls = handler_for(self.library)
         handler = cls.__new__(cls)

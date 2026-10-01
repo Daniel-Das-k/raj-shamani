@@ -8,12 +8,20 @@ episode playback, and named collections stored in this browser's local storage.
 The snapshot is a browsing catalog; it does not mark any video as searchable.
 Original captions and provider configuration are still required for checked answers.
 
-When connected, questions use `POST /api/ask/stream`. The server sends original
-retrieved excerpts before the final checked answer, using newline-delimited JSON.
-Interim excerpts are explicitly labelled as awaiting relevance checks. The final
-response uses the existing evidence-verification pipeline and is saved to response
-history. The JSON `/api/ask` endpoint remains available. A remote Supermemory search
-failure falls back to local keyword retrieval when the original captions exist.
+When connected, questions use `POST /api/ask/stream`. The server sends progress text,
+then one final checked response, using newline-delimited JSON. Retrieved candidates
+stay internal. The browser shows the answer or a clear outcome first, followed by
+verified supporting moments and the next-question composer. It also ignores interim
+excerpts from older servers. The final response uses the existing verification
+pipeline and is saved to response history. The JSON `/api/ask` endpoint remains
+available. A remote Supermemory search failure falls back to local keyword retrieval
+when the original captions exist.
+
+Disconnected, malformed, or failed requests show a retry action without leaving
+unchecked clips on screen. A final answer releases the form immediately, even if
+the connection stays open. Slow requests show an update after 30 seconds; the browser
+stops waiting after five minutes and preserves any next-question draft. Disconnecting
+does not cancel server generation: a completed response may still appear in history.
 
 The answer view includes an adjacent source player, original-caption disclosure,
 timestamp links, and saved moments. Playback uses YouTube; individual videos may
@@ -37,7 +45,10 @@ python -m unittest discover -s tests -p 'test_*.py'
 Set `APP_URL` for a different local server URL or `CHROME_PATH` for another Chrome
 executable. The browser check uses an isolated browser context, real catalog data,
 and simulated provider responses; it never makes a paid answer request. Screenshots
-are saved under `data/reader-check/`. `npm test` runs the earlier browser-script
+are saved under `data/reader-check/`. The browser suite also exercises delayed chunks,
+off-topic/no-match outcomes, clarification, failed checks, provider failures,
+disconnects, malformed responses, split UTF-8, timeouts, and recovery.
+`npm test` runs the earlier browser-script
 regressions. Live answer accuracy and latency require the original dataset and keys.
 
 The Python server serves both the frontend and API at http://127.0.0.1:8000;
@@ -47,6 +58,12 @@ or API URL configuration is needed. With the archive and keys available, run
 and the configured paid providers. It checks the streamed answer, citations,
 and reopening backend history without another generation request. The exact
 response and a screenshot are saved in `data/reader-live-check/`.
+
+For live off-topic and clarification checks through the actual reader API, run
+`.venv/bin/python tests/reader_offtopic_live.py --output data/offtopic-live/results.json`
+with the server running. This makes nine paid-provider requests, including a relevant
+control question, and saves exact stream events and outcome checks. Review the content
+as well as the automatic checks. Use a new output path for a fresh run.
 
 ---
 
@@ -58,12 +75,10 @@ are not filled in from general model knowledge.
 
 For example: "What do the videos say about customer validation?" or "Where is work
 stress discussed?" Suggestions distinguish direct discussion from related background.
-When no direct answer is found in the retrieved excerpts, useful related clips may
-still be shown. If no useful related answer passes review, the reader returns the
-closest verified excerpt summary with a clear notice that a direct answer was not
-found and a specific explanation of what the excerpt does not provide. This closest
-content is background, even when its connection is weak; missing answer details are
-never invented. Ambiguous
+Related excerpts can support a partial answer with a clear explanation of the gap.
+When the retrieved excerpts cannot support a substantive answer, the reader shows a
+no-match message with no recommendations. It does not force the nearest background
+clip into an answer to an unrelated request, such as cooking instructions. Ambiguous
 questions can receive a clarification. Generated answers, summaries, limitations,
 clarifications, and interface messages are always in English, even when the question
 uses or requests another language. Original transcript quotes stay unchanged in the
@@ -133,16 +148,13 @@ reply and checks every sentence against its own cited excerpts. Unsupported sent
 can be removed while keeping independently checked advice. A separate scope check
 validates what the reply says the retrieved passages do not establish. Partial replies
 name the missing part. One repair is allowed; if synthesis cannot be verified or its
-provider fails, the checked moments remain available without an unchecked answer.
-When no ordinary card passes, a fallback ranks the available summaries by proximity
-to the question and independently checks up to three candidates until one passes.
-Its checked summary and missing-information statement form the reply, with
-`coverage` and `reply_coverage` set to `closest` and a timestamp citation. The same
-fallback reuses a checked related card when the reply writer finds no substantive
-answer to synthesize. Search
-includes a broader subject query and retains nearest candidates when ranking finds
-no direct answer. Empty retrieval or failed source checks can still prevent a reply;
-the fallback does not establish that the entire index was exhaustively checked.
+provider fails, a clear failure message precedes the checked moments and offers retry.
+The reader sets `allow_closest=False`: rejected relevance or a writer finding no
+substantive answer produces a no-match outcome with no cards. The earlier closest
+background fallback remains available to offline experiments and other library
+callers. Search still includes a broader subject query and may retrieve nearby
+candidates; retrieval alone does not qualify a clip for display. A no-match outcome
+describes the retrieved excerpts, not an exhaustive check of the entire library.
 See [the consolidated reply check](CONSOLIDATED_REPLY_REVIEW.md).
 A model check can still miss semantic mistakes or overstate how useful a clip is.
 See [the workflow and limits](CHANNEL_IMPORT.md).

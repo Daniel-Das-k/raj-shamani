@@ -307,35 +307,38 @@ function momentCard(citation, index, guide) {
   if (guide?.summary) node.append(el('p', 'moment-copy', guide.summary));
   if (guide?.why_relevant) node.append(el('p', 'moment-copy', guide.why_relevant));
   if (guide?.limitation) node.append(el('p', 'moment-limit', guide.limitation));
-  const evidence = el('details'); evidence.append(el('summary', '', guide ? 'Read the original excerpt' : 'Original excerpt · answer not yet checked'), el('blockquote', '', citation.quote)); node.append(evidence);
+  const evidence = el('details'); evidence.append(el('summary', '', 'Read the original excerpt'), el('blockquote', '', citation.quote)); node.append(evidence);
   const actions = el('div', 'moment-actions');
   const playButton = button(`Play from ${timeLabel(citation.start)}`, '', () => play(citation, true), 'play');
   actions.append(playButton, external('Full conversation', canonical(citation))); node.append(actions); return node;
 }
-function renderMoments(items, provisional = false) {
+function renderMoments(items) {
   currentMoments = items;
   $('#moments-section').hidden = !items.length;
-  $('#moments-heading').textContent = provisional ? 'Original moments, ready to explore.' : 'Inside the conversations';
+  $('#moments-heading').textContent = 'Inside the conversations';
   $('#moment-count').textContent = `${items.length} moment${items.length === 1 ? '' : 's'}`;
-  $('#moments-note').textContent = provisional ? 'These are retrieved source excerpts. Their relevance and the answer are still being checked.' : 'Hear each idea in the context of the original conversation.';
-  $('#moments').replaceChildren(...items.map((item, i) => momentCard(item.citation || item, i, provisional ? null : item)));
+  $('#moments-note').textContent = 'Hear each idea in the context of the original conversation.';
+  $('#moments').replaceChildren(...items.map((item, i) => momentCard(item.citation || item, i, item)));
   if (items.length) previewWatch(items[0].citation || items[0]);
+  else { $('#watch-panel').hidden = true; $('#watch-container').replaceChildren(); }
 }
 function renderAnswer(answer) {
   $('#answer').replaceChildren();
+  $('#retry-question').hidden = true;
   if (/^[a-f0-9]{32}$/.test(answer.record_id || '')) {
     answerRoute = 'answer/' + answer.record_id;
     if (view === 'answer') history.replaceState(null, '', '#' + answerRoute);
   }
   if (answer.error) {
+    renderMoments([]);
     $('#retry-question').hidden = false;
     $('#answer').append(el('p', 'answer-message error', answer.error));
-    if (currentMoments.length) $('#moments-note').textContent = 'The answer could not finish. These retrieved original excerpts remain available to explore; their relevance has not been verified.';
     setProgress('The request could not finish.', true); return;
   }
-  const points = answer.points || [];
-  const moments = answer.recommendations ? [...answer.recommendations] : [];
-  if (!answer.recommendations) {
+  const noEvidence = ['insufficient_evidence', 'invalid_evidence', 'needs_clarification'].includes(answer.status);
+  const points = noEvidence ? [] : answer.points || [];
+  const moments = noEvidence ? [] : answer.recommendations ? [...answer.recommendations] : [];
+  if (!noEvidence && !answer.recommendations) {
     const seen = new Set();
     points.forEach(p => (p.citations || []).forEach(c => { const key = `${videoID(c)}:${c.start}:${c.end}`; if (!seen.has(key)) { seen.add(key); moments.push({citation: c, summary: c.summary}); } }));
   }
@@ -356,10 +359,12 @@ function renderAnswer(answer) {
       prose.append(paragraph);
     });
     $('#answer').append(prose);
-  } else $('#answer').append(el('p', 'answer-message', answer.message || 'There isn’t enough verified evidence for an answer. Try a more specific question.'));
+  } else {
+    $('#answer').append(el('p', 'answer-message', answer.message || 'There isn’t enough verified evidence for an answer. Try a more specific question.'));
+    $('#retry-question').hidden = !(['provider_error', 'invalid_evidence'].includes(answer.reply_status) || answer.status === 'invalid_evidence');
+  }
   renderMoments(moments);
-  if (!moments.length) { $('#watch-panel').hidden = true; $('#watch-container').replaceChildren(); }
-  setProgress(answer.recording_error || (answer.record_id ? 'Saved to your past questions. Every reference opens the original source.' : 'Based on the retrieved conversations.'), Boolean(answer.recording_error));
+  setProgress(answer.recording_error || (answer.record_id ? 'Saved to your past questions.' : ''), Boolean(answer.recording_error));
 }
 async function ask(question, selectedTopic = '', options = {}) {
   if (busy || !question.trim()) return;
@@ -376,31 +381,45 @@ async function ask(question, selectedTopic = '', options = {}) {
   if (!options.retry) { $('#question').value = ''; $('#question').style.height = '44px'; }
   beginAnswer(question); setProgress('Searching the original conversations…', false, true);
   updateConnection(); $('#asked-question').focus({preventScroll: true});
+  const controller = new AbortController();
+  let reader, timedOut = false;
+  const slowTimer = setTimeout(() => setProgress('This is taking longer than usual. Still preparing your answer…', false, true), 30000);
+  const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 300000);
+  $('#answer').setAttribute('aria-busy', 'true');
   try {
     const payload = {question}; if (sourceID) payload.source_id = sourceID;
-    const response = await fetch('/api/ask/stream', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    const response = await fetch('/api/ask/stream', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload), signal: controller.signal});
     if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'This question could not be sent.'); }
     if (!response.body) throw new Error('The response stream is unavailable in this browser.');
-    const reader = response.body.getReader(), decoder = new TextDecoder(); let buffer = '', finished = false;
+    reader = response.body.getReader();
+    const decoder = new TextDecoder(); let buffer = '', finished = false;
     const consume = line => {
-      if (!line.trim()) return;
+      if (finished || !line.trim()) return;
       const event = JSON.parse(line);
-      if (event.type === 'stage') setProgress(event.message, false, true);
-      if (event.type === 'excerpts') { renderMoments(event.excerpts, true); setProgress(event.message, false, true); }
+      if (event.type === 'stage' && typeof event.message === 'string') setProgress(event.message, false, true);
+      // Older servers may send raw excerpts. Only the final response can show clips.
       if (event.type === 'answer') { renderAnswer(event.response); finished = true; }
     };
-    while (true) {
+    while (!finished) {
       const part = await reader.read(); buffer += decoder.decode(part.value || new Uint8Array(), {stream: !part.done});
       let newline;
-      while ((newline = buffer.indexOf('\n')) >= 0) { consume(buffer.slice(0, newline)); buffer = buffer.slice(newline + 1); }
+      while (!finished && (newline = buffer.indexOf('\n')) >= 0) { consume(buffer.slice(0, newline)); buffer = buffer.slice(newline + 1); }
       if (part.done) { consume(buffer); break; }
     }
-    if (!finished) throw new Error('The connection ended before the answer was ready. Your original excerpts are still available below.');
+    if (!finished) throw new Error('The connection ended before your answer was ready. Please retry your question.');
   } catch (error) {
+    $('#answer').replaceChildren(); renderMoments([]);
     $('#retry-question').hidden = false;
-    setProgress(error.message || 'This request could not finish. Please try again.', true);
-    if (currentMoments.length) $('#moments-note').textContent = 'The answer did not finish. These retrieved excerpts are available to explore; their relevance has not been verified.';
+    const message = timedOut ? 'Your answer is taking too long. Check your past questions shortly, or retry.'
+      : error instanceof SyntaxError ? 'The response could not be read. Please retry your question.'
+      : error instanceof TypeError ? 'The connection was interrupted. Please retry your question.'
+      : error.message || 'This request could not finish. Please try again.';
+    setProgress(message, true);
   } finally {
+    clearTimeout(slowTimer); clearTimeout(timeout);
+    if (reader) reader.cancel().catch(() => {});
+    controller.abort();
+    $('#answer').setAttribute('aria-busy', 'false');
     busy = false; $('#ask-button').disabled = false; updateConnection(); updateResume();
     if (view === 'saved') { historyOffset = 0; loadHistory(); }
   }

@@ -10,6 +10,7 @@ class RajShamaniLibrary(ChannelLibrary):
     read_only = True
     answer_repairs = 1
     answer_strategy = 'video_guide'
+    allow_closest = False
 
     def search(self, question, source_id=None):
         from .caption_retrieval import retrieve

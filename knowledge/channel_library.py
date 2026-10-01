@@ -280,8 +280,7 @@ class ChannelLibrary:
             retrieved = self.search(question, source_id)
             citations = retrieved["excerpts"]
             if progress and citations:
-                progress({"type": "excerpts", "excerpts": citations,
-                          "message": "Original excerpts found. Checking an answer against them…"})
+                progress({"type": "stage", "message": "Checking the sources and preparing your answer…"})
             sources = {}
             for cite in citations:
                 if cite["source_id"] not in sources:
@@ -289,6 +288,8 @@ class ChannelLibrary:
                     sources[cite["source_id"]] = read_json(self.directory / f"{cite['source_id']}-{record['revision'][:12]}.json")
             audit = {"retrieval": retrieved.get("retrieval", {})}
             options = {"max_repairs": self.answer_repairs} if hasattr(self, "answer_repairs") else {}
+            if getattr(self, 'answer_strategy', '') == 'video_guide':
+                options['allow_closest'] = getattr(self, 'allow_closest', True)
             if getattr(self, 'isolate_reference_summaries', False):
                 options['isolate_summaries'] = True
             if retrieved.get("clarifying_question"):

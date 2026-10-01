@@ -52,7 +52,7 @@ class VideoGuideTests(unittest.TestCase):
         self.assertEqual(result['status'], 'recommendations')
         self.assertEqual(result['coverage'], 'related')
         self.assertEqual(result['points'], [])
-        self.assertIn('did not find a direct answer in the retrieved excerpts', result['message'])
+        self.assertIn('could not prepare a checked answer', result['message'])
         card = result['recommendations'][0]
         self.assertEqual(card['citation'], self.citations[0])
         self.assertEqual(card['limitation'], self.llm.card['limitation'])
@@ -103,6 +103,38 @@ class VideoGuideTests(unittest.TestCase):
         self.assertEqual(result['points'][0]['citations'], self.citations)
         self.assertEqual(result['recommendations'][0]['match'], 'closest')
         self.reply.assert_not_called()
+
+    def test_reader_does_not_force_business_clips_into_a_recipe_answer(self):
+        self.llm.card['match'] = 'none'
+        for question in ['How to cook Maggi?', 'how to cook maggie', 'Give me a sourdough recipe.']:
+            with self.subTest(question=question):
+                result = recommend_moments(question, self.citations, self.sources, self.llm, allow_closest=False)
+                self.assertEqual(result['status'], 'insufficient_evidence')
+                self.assertEqual(result['recommendations'], [])
+                self.assertEqual(result['points'], [])
+        self.assertNotIn(CLOSEST_PROMPT, [call[0] for call in self.llm.calls])
+        self.reply.assert_not_called()
+
+    def test_reader_respects_reviewer_rejection_without_closest_fallback(self):
+        self.llm.review['match'] = 'none'
+        result = self.run_guide(allow_closest=False)
+        self.assertEqual(result['status'], 'insufficient_evidence')
+        self.assertEqual(result['recommendations'], [])
+
+    def test_reader_abstains_when_related_clips_support_no_reply(self):
+        self.reply.return_value = {'points': [], 'reply_status': 'insufficient_evidence'}
+        result = self.run_guide(allow_closest=False)
+        self.assertEqual(result['status'], 'insufficient_evidence')
+        self.assertEqual(result['points'], [])
+        self.assertEqual(result['recommendations'], [])
+
+    def test_reader_keeps_supported_partial_answers_and_their_sources(self):
+        points = [{'text': 'Talk to customers. These excerpts do not predict your business outcome.', 'citations': self.citations}]
+        self.reply.return_value = {'points': points, 'reply_status': 'ready', 'reply_coverage': 'partial'}
+        result = self.run_guide(allow_closest=False)
+        self.assertEqual(result['status'], 'answered')
+        self.assertEqual(result['points'], points)
+        self.assertEqual(len(result['recommendations']), 1)
 
     def test_recipe_gets_closest_content_without_invented_cooking_instructions(self):
         self.llm.card['match'] = 'none'  # No ordinary selection, but a readable source remains.

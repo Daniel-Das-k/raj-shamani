@@ -213,6 +213,7 @@ const path = require('node:path');
       await page.evaluate(() => window.scrollTo({top: 0, behavior: 'instant'}));
       await page.screenshot({path: path.join(output, `question-flow-${width}.png`), fullPage: true});
     }
+    await require('./reader_stream_browser.cjs')(page, citation, answer);
     assert.deepEqual(errors, []);
     console.log('Reader checks passed: catalog, playback, collections, light/dark themes, responsive layouts, citations, repeat questions in place, drafts, visible scope, retry, busy submission guard, Back/Forward, refresh, and saved-answer reopening without generation.');
   } finally { await browser.close(); }
