@@ -180,6 +180,7 @@ def handler_for(demo: Demo):
                       "/theme.js": ("theme.js", "text/javascript"),
                       "/catalog.json": ("catalog.json", "application/json"),
                       "/media/huberman.png": ("media/huberman.png", "image/png"),
+                      "/media/raj-shamani.jpg": ("media/raj-shamani.jpg", "image/jpeg"),
                       "/favicon.svg": ("favicon.svg", "image/svg+xml"),
                       "/geist-latin.woff2": ("geist-latin.woff2", "font/woff2")}
             try:

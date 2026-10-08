@@ -94,14 +94,14 @@ function saveButton(item, label) {
   node.dataset.saveKey = itemKey(item); markSaved(node); return node;
 }
 function markSaved(node) {
-  const key = node.dataset.saveKey || `${node.dataset.save}:episode`;
+  const key = node.dataset.saveKey;
   const names = collections.filter(c => c.items.some(item => itemKey(item) === key)).map(c => c.name);
   node.setAttribute('aria-pressed', String(Boolean(names.length)));
   node.title = names.length ? `Saved in ${names.join(', ')}` : 'Save to collection';
   node.disabled = collectionSaving || !collectionsReady;
 }
 function updateSaveButtons() {
-  document.querySelectorAll('[data-save], [data-save-key]').forEach(markSaved);
+  document.querySelectorAll('[data-save-key]').forEach(markSaved);
   document.querySelectorAll('.remove-save, #new-collection').forEach(node => { node.disabled = collectionSaving || !collectionsReady; });
 }
 function savedItem(item) {
@@ -462,7 +462,7 @@ async function ask(question, selectedTopic = '', options = {}) {
     openCatalog(selectedTopic ? '' : question, selectedTopic);
     toast('Showing episode titles and topics. Answer search needs the connected caption archive.'); return;
   }
-  const sourceID = options.sourceID ?? $('#video-scope').value;
+  const sourceID = options.sourceID ?? '';
   lastQuestion = {question, sourceID}; answerRoute = 'answer';
   busy = true; $('#ask-button').disabled = true;
   if (!options.retry) { $('#question').value = ''; $('#question').style.height = '44px'; }
@@ -523,25 +523,11 @@ function updateConnection() {
   $('#ask-again').hidden = busy;
   $('#question-form').hidden = busy;
   $('#availability-note').hidden = busy;
-  const videos = readyVideos(), selected = $('#video-scope').value;
-  if (!busy) {
-    const first = el('option', '', 'All conversations'); first.value = '';
-    $('#video-scope').replaceChildren(first, ...videos.map(v => { const o = el('option', '', v.title); o.value = v.id; return o; }));
-    if (videos.some(v => v.id === selected)) $('#video-scope').value = selected;
-  }
-  $('#search-mode').textContent = canAnswer() ? 'Ask the archive' : view === 'answer' ? 'Archive unavailable' : 'Browse episodes';
   $('#ask-button').setAttribute('aria-label', view === 'answer' ? 'Ask another question' : canAnswer() ? 'Ask the archive' : 'Browse matching episodes');
   $('#availability-note').textContent = canAnswer() ? 'Answers with clips from the original conversations.' : 'Explore episodes now. Answers become available when the caption archive is connected.';
   if (view === 'answer') $('#availability-note').textContent = 'Each question searches independently. Include the names or topics you mean.';
   if (view === 'answer' && !busy && !canAnswer()) $('#availability-note').textContent = 'The answer archive is unavailable. Your draft stays here while the library reconnects.';
   $('#retry-question').disabled = busy;
-  $('#archive-status').textContent = `${catalog.length} episodes in this catalog. ${videos.length} conversations currently searchable.`;
-  const missing = [];
-  if (!videos.length) missing.push('Restore the original data directory to make caption search available.');
-  if (!status?.credentials?.answers) missing.push('Configure OPENAI_API_KEY on the server for checked answers.');
-  if (!status?.credentials?.indexing && status?.backend === 'supermemory') missing.push('Configure SUPERMEMORY_API_KEY for semantic retrieval; local keyword retrieval can still use restored captions.');
-  $('#connection-details').textContent = status ? missing.join(' ') || 'The archive is connected and ready for questions.' : 'The local server could not be reached. Check that it is running, then refresh.';
-  if (accountRequired) $('#connection-details').textContent = canAnswer() ? 'The archive is ready for questions.' : 'The archive is temporarily unavailable. Please try again shortly.';
 }
 async function refreshStatus() {
   const version = ++statusVersion;
@@ -565,8 +551,6 @@ async function refreshStatus() {
 }
 function bind() {
   document.querySelectorAll('[data-view]').forEach(node => node.addEventListener('click', () => navigate(node.dataset.view)));
-  document.querySelectorAll('[data-play]').forEach(node => node.addEventListener('click', () => { const v = findVideo(node.dataset.play); if (v) play(v); }));
-  document.querySelectorAll('[data-save]').forEach(node => node.addEventListener('click', () => { const v = findVideo(node.dataset.save); if (v) openSave(v); }));
   document.querySelectorAll('[data-question]').forEach(node => node.addEventListener('click', () => { $('#question').value = node.dataset.question; ask(node.dataset.question, node.dataset.topic); }));
   document.querySelectorAll('[data-close]').forEach(node => node.addEventListener('click', () => closeDialog(node.dataset.close)));
   $('#question-form').addEventListener('submit', event => { event.preventDefault(); ask($('#question').value); });
@@ -586,7 +570,6 @@ function bind() {
   $('#video-external').addEventListener('click', () => { stopVideo(); closeDialog('video-dialog'); });
   $('#video-dialog').addEventListener('close', () => { $('#video-container').replaceChildren(); lastFocused?.focus(); });
   $('#save-dialog').addEventListener('close', () => lastFocused?.focus());
-  $('#about-button').addEventListener('click', () => $('#about-dialog').showModal());
   window.addEventListener('hashchange', followRoute);
   window.addEventListener('storage', event => { if (!accountRequired && (event.key === storageKey || event.key === null)) { collections = loadCollections(); updateSavedCount(); if (view === 'saved') renderSaved(); if ($('#save-dialog').open) refreshCollectionOptions(); } });
   collectionChannel?.addEventListener('message', event => { if (event.data?.owner === account?.id) syncCollections(true); });

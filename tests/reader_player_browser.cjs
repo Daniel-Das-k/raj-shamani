@@ -13,9 +13,9 @@ const path = require('node:path');
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     const types = {'.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-      '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2'};
+      '.json': 'application/json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.png': 'image/png', '.woff2': 'font/woff2'};
     const allowed = new Set(['index.html', 'reader.js', 'theme.js', 'reader.css',
-      'catalog.json', 'favicon.svg', 'geist-latin.woff2', 'media/huberman.png']);
+      'catalog.json', 'favicon.svg', 'geist-latin.woff2', 'media/huberman.png', 'media/raj-shamani.jpg']);
     await page.context().route('**/*', async route => {
       const url = new URL(route.request().url());
       if (url.origin === 'https://www.youtube-nocookie.com') {
@@ -36,7 +36,7 @@ const path = require('node:path');
     });
     await page.goto(origin + '/?question=private#discover');
     await page.locator('.editorial-lead').waitFor();
-    await page.waitForFunction(() => document.querySelector('#search-mode').textContent !== 'Loading archive…');
+    await page.waitForFunction(() => document.querySelector('#ask-button').getAttribute('aria-label') !== 'Search the archive');
 
     const first = {source_id: 'Y566_T-YlNQ', title: 'Playback fixture', start: 100.25, end: 106.75,
       time_range: '1:40–1:46', quote: 'First synthetic excerpt.'};
@@ -125,8 +125,8 @@ const path = require('node:path');
     assert.equal(await page.locator('#saved-grid .catalog-card').count(), 2);
     assert.deepEqual(await page.locator('#saved-grid .episode-meta').allTextContents(), ['Saved clip · 1:40–1:47', 'Saved clip · 1:40–2:10']);
     await page.locator('.main-nav [data-view=discover]').click();
-    await checkPlayback(() => page.getByRole('button', {name: 'Watch the Andrew Huberman conversation', exact: true}).click(),
-      '#video-container', null, null);
+    await checkPlayback(() => page.locator('.editorial-lead .episode-art').click(),
+      '#video-container', null, null, '46P1rL0rzPE');
     await page.getByRole('button', {name: 'Close video', exact: true}).click();
     await page.locator('#video-container iframe').waitFor({state: 'detached'});
 

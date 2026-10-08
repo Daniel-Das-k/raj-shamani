@@ -47,10 +47,9 @@ module.exports = async function checkReaderState(page) {
     return route.fulfill({json: {sources: videos.slice(50)}});
   });
   await page.evaluate(() => refreshStatus());
-  assert.equal(await page.locator('#video-scope option').count(), 53);
-  await page.locator('.main-nav [data-view=discover]').click();
-  await page.locator('#video-scope').selectOption(videos[51].id);
-  assert.equal(await page.locator('#video-scope').inputValue(), videos[51].id);
+  assert.equal(await page.evaluate(() => readyVideos().length), 52);
+  assert.equal(await page.evaluate(id => findVideo(id).title, videos[51].id), videos[51].title);
+  assert.equal(await page.locator('#video-scope').count(), 0);
 
   await page.locator('.main-nav [data-view=saved]').click();
   await page.evaluate(() => {
@@ -62,5 +61,5 @@ module.exports = async function checkReaderState(page) {
   });
   assert.match(await page.locator('#collection-tabs').textContent(), /Preserved collection/);
   assert.equal(await page.locator('#saved-grid .catalog-card').count(), 1);
-  console.log('Reader state checks passed: stale history, pagination retry, all indexed video scopes, and partial collection recovery.');
+  console.log('Reader state checks passed: stale history, pagination retry, all indexed videos, and partial collection recovery.');
 };

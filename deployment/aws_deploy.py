@@ -87,7 +87,7 @@ def package(output):
             for path in sorted((ROOT / 'knowledge').glob('*.py')):
                 archive.add(path, arcname=path.relative_to(ROOT))
             for path in sorted((ROOT / 'knowledge/web').rglob('*')):
-                if path.is_file() and path.suffix in {'.js', '.css', '.html', '.json', '.svg', '.woff2', '.png'}:
+                if path.is_file() and path.suffix in {'.js', '.css', '.html', '.json', '.svg', '.woff2', '.png', '.jpg'}:
                     archive.add(path, arcname=path.relative_to(ROOT))
             for path in sorted((ROOT / 'deployment').iterdir()):
                 if path.is_file() and path.suffix in {'.py', '.sh'}:

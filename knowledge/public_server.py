@@ -38,6 +38,7 @@ ASSETS = {
     '/reader.js': 'reader.js', '/reader.css': 'reader.css', '/theme.js': 'theme.js',
     '/catalog.json': 'catalog.json', '/favicon.svg': 'favicon.svg',
     '/geist-latin.woff2': 'geist-latin.woff2', '/media/huberman.png': 'media/huberman.png',
+    '/media/raj-shamani.jpg': 'media/raj-shamani.jpg',
 }
 SECURITY_HEADERS = {
     'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',

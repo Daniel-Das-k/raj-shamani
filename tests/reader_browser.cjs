@@ -23,12 +23,15 @@ const path = require('node:path');
     await page.emulateMedia({reducedMotion: 'reduce', colorScheme: 'light'});
     await page.goto(origin);
     await page.locator('.editorial-lead').waitFor();
-    assert.equal(await page.locator('.collection-callout, .archive-note, .site-footer > p').count(), 0);
-    await page.waitForFunction(() => document.querySelector('#search-mode').textContent !== 'Loading archive…');
+    assert.equal(await page.locator('.collection-callout, .archive-note, .site-footer, .search-options, #video-scope').count(), 0);
+    await page.waitForFunction(() => document.querySelector('#ask-button').getAttribute('aria-label') !== 'Search the archive');
     await page.evaluate(() => document.fonts.ready);
     await overflow();
     assert.equal(await page.locator('.traffic-lights, .app-window').count(), 0);
     assert.equal(await page.locator('.feature-media img').evaluate(image => image.complete && image.naturalWidth > 0), true);
+    assert.equal(await page.locator('.feature-media img').getAttribute('alt'), 'Raj Shamani at the podcast microphone');
+    assert.equal(await page.locator('.feature-media').getAttribute('href'), 'https://www.youtube.com/@rajshamani');
+    assert.equal(await page.locator('.feature-media').getAttribute('target'), '_blank');
     await page.screenshot({path: path.join(output, 'discovery-desktop.png'), fullPage: true});
 
     await page.emulateMedia({colorScheme: 'dark'});
@@ -43,7 +46,7 @@ const path = require('node:path');
     await page.reload();
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'Manual dark choice overrides light OS and survives reload');
     await page.locator('.editorial-lead').waitFor();
-    await page.locator('[data-save]').first().click();
+    await page.locator('.editorial-list [data-save-key]').first().click();
     await page.screenshot({path: path.join(output, 'dark-save-dialog.png')});
     await page.keyboard.press('Escape');
     for (const width of [320, 390, 768]) {
@@ -54,8 +57,8 @@ const path = require('node:path');
     await page.setViewportSize({width: 1440, height: 1000});
     await page.locator('#theme-toggle').click();
 
-    await page.getByRole('button', {name: 'Watch the Andrew Huberman conversation', exact: true}).click();
-    assert.match(await page.locator('#video-container iframe').getAttribute('src'), /Y566_T-YlNQ/);
+    await page.locator('.editorial-lead .episode-art').click();
+    assert.match(await page.locator('#video-container iframe').getAttribute('src'), /46P1rL0rzPE/);
     await page.getByRole('button', {name: 'Close video', exact: true}).click();
     // The native dialog queues its close event, which removes the player.
     await page.locator('#video-container iframe').waitFor({state: 'detached'});
@@ -96,9 +99,6 @@ const path = require('node:path');
       await overflow();
       if (width === 390) await page.screenshot({path: path.join(output, 'discovery-mobile.png'), fullPage: true});
     }
-    await page.locator('#about-button').click();
-    assert.equal(await page.locator('#about-dialog').evaluate(el => el.open), true);
-    await page.getByRole('button', {name: 'Close archive information', exact: true}).click();
 
     // Only the following section mocks answer/index availability. Browsing above is real.
     const video = {id: 'Y566_T-YlNQ', title: 'Andrew Huberman: Daily Habits', state: 'ready'};
@@ -128,12 +128,11 @@ const path = require('node:path');
     await page.route(/\/api\/responses\/[a-f0-9]{32}$/, route => route.fulfill({json: records.get(route.request().url().split('/').pop())}));
     await page.setViewportSize({width: 1440, height: 1000});
     await page.goto(origin);
-    await page.waitForFunction(() => document.querySelector('#search-mode').textContent === 'Ask the archive');
-    await page.locator('#video-scope').selectOption(video.id);
+    await page.waitForFunction(() => canAnswer());
     await page.locator('#question').fill('How can I focus better?');
     await page.locator('#question').press('Enter');
     await page.locator('.answer-prose').waitFor();
-    assert.equal(sent[0].source_id, video.id);
+    assert.deepEqual(sent[0], {question: 'How can I focus better?'}, 'New questions search all conversations without a scope selector');
     assert.equal(await page.locator('.moment').count(), 1);
     assert.equal(await page.locator('#watch-panel').isVisible(), false, 'Show the player only after a clip is selected');
     assert.equal(await page.locator('.moment details, .moment blockquote').count(), 0, 'Original excerpts are not shown');
@@ -170,7 +169,6 @@ const path = require('node:path');
     assert.equal(await page.locator('#question').evaluate(el => document.activeElement === el), true);
     assert.equal(await page.locator('#answer-view').isVisible(), true, 'Ask another stays with the answer');
     await page.locator('#question').fill('How do I build a business?');
-    await page.locator('#video-scope').selectOption('');
     await page.locator('.main-nav [data-view=saved]').click();
     await page.locator('#return-to-answer').click();
     assert.equal(await page.locator('#question').inputValue(), 'How do I build a business?', 'Draft survives browsing');
@@ -178,7 +176,7 @@ const path = require('node:path');
     assert.equal(requests, 1, 'Returning to the current question must not regenerate it');
     await page.locator('#question').press('Enter');
     await page.waitForFunction(() => document.querySelector('#asked-question').textContent === 'How do I build a business?' && !document.querySelector('#ask-button').disabled);
-    assert.deepEqual(sent[1], {question: 'How do I build a business?'}, 'Next question is independent and uses the visible scope');
+    assert.deepEqual(sent[1], {question: 'How do I build a business?'}, 'Next question searches all conversations independently');
     assert.equal(await page.locator('#question').inputValue(), '', 'Successful submission leaves an empty composer');
     await page.goBack();
     await page.waitForFunction(() => document.querySelector('#asked-question').textContent === 'How can I focus better?');
@@ -221,6 +219,6 @@ const path = require('node:path');
     await require('./reader_stream_browser.cjs')(page, citation, answer);
     await require('./reader_state_browser.cjs')(page);
     assert.deepEqual(errors, []);
-    console.log('Reader checks passed: catalog, playback, collections, light/dark themes, responsive layouts, citations, repeat questions in place, drafts, visible scope, retry, busy submission guard, Back/Forward, refresh, and saved-answer reopening without generation.');
+    console.log('Reader checks passed: catalog, playback, collections, light/dark themes, responsive layouts, citations, repeat questions in place, drafts, archive-wide search, retry, busy submission guard, Back/Forward, refresh, and saved-answer reopening without generation.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

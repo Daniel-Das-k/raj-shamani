@@ -59,13 +59,12 @@ const path = require('node:path');
     }));
     await page.emulateMedia({colorScheme: 'light', reducedMotion: 'reduce'});
     await page.goto(origin);
-    await page.waitForFunction(() => document.querySelector('#search-mode')?.textContent === 'Ask the archive');
+    await page.waitForFunction(() => canAnswer());
     // The reader supplies the current guest/account headers as well as cookies.
     const status = await page.evaluate(() => api('/api/status'));
     assert.equal(status.answer_model, 'gpt-4.1-mini');
     const video = status.sources.find(source => source.title.includes('Andrew Huberman'));
     assert.ok(video, 'The live archive must contain the Huberman episode');
-    await page.locator('#video-scope').selectOption(video.id);
     await page.locator('#question').fill(question);
     const responsePromise = page.waitForResponse(response =>
       new URL(response.url()).pathname === '/api/ask/stream', {timeout: 300000});
