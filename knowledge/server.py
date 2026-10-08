@@ -279,7 +279,7 @@ def handler_for(demo: Demo):
                 # Retrieval candidates are internal until the answer is checked.
                 if event.get("type") == "stage" and isinstance(event.get("message"), str):
                     stage = {"type": "stage", "message": event["message"]}
-                    if event.get("phase") in ("search", "compose"):
+                    if event.get("phase") in ("search", "review", "compose"):
                         stage["phase"] = event["phase"]
                     emit(stage)
 

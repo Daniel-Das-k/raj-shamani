@@ -190,7 +190,7 @@ def related_limit(language):
     return 'This excerpt offers related background, but does not establish a complete answer to your question.'
 
 
-def recommend_moments(question, citations, sources, llm, audit=None, *, allow_closest=True, **unused):
+def recommend_moments(question, citations, sources, llm, audit=None, *, allow_closest=True, progress=None, **unused):
     question = nonempty_text(question, 'question', 6000)
     audit = audit if audit is not None else {}
     language = question_language(question)
@@ -205,6 +205,8 @@ def recommend_moments(question, citations, sources, llm, audit=None, *, allow_cl
         if invalid:
             message = 'I could not verify useful descriptions from the retrieved excerpts. Try a narrower search.'
         response = {'status': status, 'coverage': coverage, 'message': message, 'recommendations': items, 'points': []}
+        if items and progress:
+            progress({'type': 'stage', 'phase': 'compose', 'message': 'Preparing and checking your answer…'})
         if items and coverage != 'closest':
             response.update(compose_reply(question, items, llm, audit.setdefault('consolidated_reply', {})))
             if not allow_closest and not response['points'] and response.get('reply_status') == 'insufficient_evidence':

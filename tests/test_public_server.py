@@ -128,14 +128,16 @@ class PublicServerTests(unittest.TestCase):
     def test_stream_has_only_stage_messages_before_final_and_reserves_daily_usage(self):
         self.sign_in()
         def answer(question, scope, progress):
+            progress({'type': 'stage', 'phase': 'review', 'message': 'Checking clips', 'excerpts': ['unverified text']})
             progress({'type': 'stage', 'phase': 'compose', 'message': 'Checking sources', 'excerpts': ['unverified text']})
             progress({'type': 'excerpts', 'excerpts': ['unverified text']})
             return {'status': 'insufficient_evidence', 'points': [], 'message': 'No match'}
         self.answer.side_effect = answer
         response = self.client.post('/api/ask/stream', json={'question': 'Unrelated question'})
         events = [json.loads(line) for line in response.text.splitlines() if line.strip()]
-        self.assertEqual([e['type'] for e in events], ['stage', 'answer'])
-        self.assertEqual(events[0], {'type': 'stage', 'phase': 'compose', 'message': 'Checking sources'})
+        self.assertEqual([e['type'] for e in events], ['stage', 'stage', 'answer'])
+        self.assertEqual(events[0], {'type': 'stage', 'phase': 'review', 'message': 'Checking clips'})
+        self.assertEqual(events[1], {'type': 'stage', 'phase': 'compose', 'message': 'Checking sources'})
         self.assertIn('record_id', events[-1]['response'])
         self.assertEqual(response.headers['cache-control'], 'no-store')
         for _ in range(2):

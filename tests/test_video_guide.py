@@ -48,6 +48,22 @@ class VideoGuideTests(unittest.TestCase):
     def run_guide(self, **kwargs):
         return recommend_moments('Will my business succeed?', self.citations, self.sources, self.llm, **kwargs)
 
+    def test_preparation_progress_starts_only_after_clip_review(self):
+        events = []
+        def progress(event):
+            self.assertTrue(self.llm.calls, 'Source reading and review must precede preparation')
+            self.reply.assert_not_called()
+            events.append(event)
+        self.run_guide(progress=progress)
+        self.assertEqual([event['phase'] for event in events], ['compose'])
+        self.reply.assert_called_once()
+
+    def test_no_sources_does_not_report_answer_preparation(self):
+        events = []
+        recommend_moments('Explain.', [], {}, self.llm, progress=events.append)
+        self.assertEqual(events, [])
+        self.reply.assert_not_called()
+
     def test_related_content_is_returned_without_inventing_a_final_answer(self):
         result = self.run_guide()
         self.assertEqual(result['status'], 'recommendations')

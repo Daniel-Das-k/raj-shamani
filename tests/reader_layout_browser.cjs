@@ -14,9 +14,16 @@ module.exports = async (page, output, citation) => {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     for (const width of [1440, 768, 390, 320]) {
       await page.setViewportSize({width, height: 900});
-      for (const view of ['discover', 'answer', 'saved']) {
+      for (const view of ['discover', 'progress', 'answer', 'saved']) {
         await page.evaluate(({view, answer}) => {
-          if (view === 'answer') { beginAnswer('How can I improve my focus?'); renderAnswer(answer); }
+          document.querySelector('#answer-progress').hidden = true;
+          if (view === 'progress') {
+            beginAnswer('How can I improve my focus?'); generationPhase('review');
+            setProgress('Checking source clips against the original transcripts…', false, true);
+            document.querySelector('#answer-progress').hidden = false;
+            document.querySelector('#answer-composer').hidden = true;
+            document.querySelector('#answer-elapsed').textContent = 'Elapsed 0:08';
+          } else if (view === 'answer') { beginAnswer('How can I improve my focus?'); renderAnswer(answer); }
           else navigate(view, {libraryTab: 'collections'});
           document.activeElement?.blur();
           window.scrollTo({top: 0, behavior: 'instant'});
@@ -35,7 +42,7 @@ module.exports = async (page, output, citation) => {
             }
             return [255, 255, 255];
           };
-          const selectors = '.main-nav button, .back-link, .availability-note, .episode-meta, .episode-guest, .moment-copy, .moment-limit, .clip-source, .clip-time, .clip-play, .answer-lead, .answer-limitation, .library-tabs button, .folder-copy strong, .folder-copy>span, .action-menu summary, .action-menu button, .remove-save';
+          const selectors = '.main-nav button, .back-link, .availability-note, .episode-meta, .episode-guest, .moment-copy, .moment-limit, .clip-source, .clip-time, .clip-play, .answer-lead, .answer-limitation, .library-tabs button, .folder-copy strong, .folder-copy>span, .action-menu summary, .action-menu button, .remove-save, .phase-marker, .phase-label, .phase-state, #answer-step';
           for (const node of document.querySelectorAll(selectors)) {
             if (!node.getClientRects().length) continue;
             const style = getComputedStyle(node), fg = luminance(rgb(style.color)), bg = luminance(background(node));
@@ -50,6 +57,15 @@ module.exports = async (page, output, citation) => {
           return problems;
         });
         assert.deepEqual(issues, [], `${theme} ${width}px ${view}`);
+        if (view === 'answer') {
+          const [summary, clips, composer] = await Promise.all(['#answer-summary', '#moments-section', '#answer-composer'].map(selector => page.locator(selector).boundingBox()));
+          if (width > 1000) {
+            assert.ok(summary.x + summary.width < clips.x, 'Desktop answer and sources use separate columns');
+            assert.equal(Math.round(summary.y), Math.round(clips.y), 'Columns align at the top');
+          } else {
+            assert.ok(summary.y + summary.height <= clips.y && clips.y + clips.height <= composer.y, 'Mobile shows the answer, all sources, then the next question');
+          }
+        }
         if ([1440, 390].includes(width)) {
           await page.evaluate(async () => {
             await document.fonts.ready;

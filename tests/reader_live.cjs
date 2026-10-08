@@ -81,7 +81,7 @@ const path = require('node:path');
     assert.ok(final, 'The stream must deliver a final answer');
     await fs.writeFile(path.join(output, 'response.json'), JSON.stringify({question, events}, null, 2));
     assert.equal(final.http_status, 200, final.response.error);
-    assert.deepEqual(events.filter(event => event.type === 'stage').map(event => event.phase), ['search', 'compose']);
+    assert.deepEqual(events.filter(event => event.type === 'stage').map(event => event.phase), ['search', 'review', 'compose']);
     assert.equal(await page.locator('#answer-progress').isVisible(), false);
     assert.equal(await page.locator('#question-form').isVisible(), true);
     const answer = final.response;

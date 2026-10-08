@@ -184,12 +184,13 @@ The snapshot is a browsing catalog; it does not mark any video as searchable.
 Original captions and provider configuration are still required for checked answers.
 
 When connected, questions use `POST /api/ask/stream`. The server sends progress text
-with allowlisted search/compose phases,
+with allowlisted search/review/compose phases,
 then one final checked response, using newline-delimited JSON. Retrieved candidates
-stay internal. The browser shows the answer or a clear outcome first, followed by
-verified supporting moments and the next-question composer. While generating, the
-next-question form and "Ask another" action are hidden. A plain progress list follows
-the actual server phases and shows elapsed time without an estimated completion time.
+stay internal. On desktop, the answer and source clips sit side by side. On smaller
+screens, the answer, source clips, and next-question composer follow in reading order.
+While generating, the next-question form and "Ask another" action are hidden. A connected
+three-step timeline follows real search, clip review, and answer preparation events;
+elapsed time never advances the steps or implies an estimated completion time.
 The form returns on success, failure, or cancellation. Cancel stops waiting and restores
 the question for editing; it does not guarantee that a running provider call stops or
 avoids its charge. A completed answer can still appear in Past questions. The homepage

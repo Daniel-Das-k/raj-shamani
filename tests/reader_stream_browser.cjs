@@ -44,6 +44,12 @@ module.exports = async function checkReaderStream(page, citation, answer) {
   await page.clock.install();
   await start('How can I focus better?');
   await send(candidates);
+  await send({type: 'stage', phase: 'review', message: 'Checking source clips…'});
+  assert.equal(await page.locator('[data-phase=review]').getAttribute('aria-current'), 'step');
+  assert.equal(await page.locator('[data-phase=compose] .phase-state').textContent(), 'Waiting');
+  assert.equal(await page.locator('#answer-step').textContent(), 'Step 2 of 3');
+  await page.clock.fastForward(5000);
+  assert.equal(await page.locator('[data-phase=review]').getAttribute('aria-current'), 'step', 'Elapsed time must not advance server progress');
   await send({type: 'stage', phase: 'compose', message: 'Checking the sources…'});
   await page.waitForFunction(() => document.querySelector('#request-status').textContent === 'Checking the sources…');
   await noClips();
@@ -54,6 +60,8 @@ module.exports = async function checkReaderStream(page, citation, answer) {
   assert.equal(await page.locator('#question-form').isVisible(), false);
   assert.equal(await page.locator('[data-phase=compose]').getAttribute('aria-current'), 'step');
   assert.equal(await page.locator('[data-phase=search] .phase-state').textContent(), 'Done');
+  assert.equal(await page.locator('[data-phase=review] .phase-state').textContent(), 'Done');
+  assert.equal(await page.locator('#answer-step').textContent(), 'Step 3 of 3');
   await page.clock.fastForward(2000);
   assert.match(await page.locator('#answer-elapsed').textContent(), /^Elapsed 0:0[2-9]$/);
   await page.locator('.main-nav [data-view=discover]').click();
@@ -74,8 +82,10 @@ module.exports = async function checkReaderStream(page, citation, answer) {
   const finishedElapsed = await page.locator('#answer-elapsed').textContent();
   await page.clock.fastForward(2000);
   assert.equal(await page.locator('#answer-elapsed').textContent(), finishedElapsed, 'Stop the timer when the answer completes');
-  const order = await page.evaluate(() => ['answer', 'moments-section', 'answer-composer'].map(id => document.getElementById(id).getBoundingClientRect().top));
-  assert.ok(order[0] < order[1] && order[1] < order[2], 'Answer, sources, then the next-question composer');
+  assert.equal(await page.evaluate(() => {
+    const nodes = ['answer', 'moments-section', 'answer-composer'].map(id => document.getElementById(id));
+    return nodes.slice(1).every((node, i) => nodes[i].compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }), true, 'Keep the reading order: answer, sources, then the next-question composer');
 
   const outcomes = [
     {status: 'insufficient_evidence', message: 'I could not find a useful match in the retrieved video excerpts.'},

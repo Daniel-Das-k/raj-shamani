@@ -280,7 +280,7 @@ class ChannelLibrary:
             retrieved = self.search(question, source_id)
             citations = retrieved["excerpts"]
             if progress and citations:
-                progress({"type": "stage", "phase": "compose", "message": "Checking the sources and preparing your answer…"})
+                progress({"type": "stage", "phase": "review", "message": "Checking source clips against the original transcripts…"})
             sources = {}
             for cite in citations:
                 if cite["source_id"] not in sources:
@@ -290,12 +290,15 @@ class ChannelLibrary:
             options = {"max_repairs": self.answer_repairs} if hasattr(self, "answer_repairs") else {}
             if getattr(self, 'answer_strategy', '') == 'video_guide':
                 options['allow_closest'] = getattr(self, 'allow_closest', True)
+                options['progress'] = progress
             if getattr(self, 'isolate_reference_summaries', False):
                 options['isolate_summaries'] = True
             if retrieved.get("clarifying_question"):
                 result = {"status": "needs_clarification", "message": retrieved["clarifying_question"], "points": []}
                 audit["final_status"] = "needs_clarification"
             else:
+                if progress and citations and getattr(self, 'answer_strategy', '') != 'video_guide':
+                    progress({"type": "stage", "phase": "compose", "message": "Preparing and checking your answer…"})
                 generate = {'video_guide': recommend_moments, 'isolated_statements': answer_from_evidence}.get(
                     getattr(self, 'answer_strategy', ''), answer_captions)
                 result = generate(question, citations, sources, self.llm, audit=audit, whole_passages=True, **options)

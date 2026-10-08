@@ -354,7 +354,7 @@ def create_app(config=None, *, library_factory=None, identity=None):
                 def progress(event):
                     if event.get('type') == 'stage' and isinstance(event.get('message'), str):
                         stage = {'type': 'stage', 'message': event['message']}
-                        if event.get('phase') in ('search', 'compose'):
+                        if event.get('phase') in ('search', 'review', 'compose'):
                             stage['phase'] = event['phase']
                         events.put(stage)
                 result, code = recorded_answer(library, history.for_owner(owner),

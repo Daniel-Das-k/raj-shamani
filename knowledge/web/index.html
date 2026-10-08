@@ -91,15 +91,22 @@
     <section id="answer-view" class="view page-width" hidden>
       <button type="button" data-view="discover" class="back-link">← Back to discovery</button>
       <div class="answer-heading"><h1 id="asked-question" tabindex="-1"></h1></div>
-      <p id="answer-scope" class="answer-scope"></p>
+      <div class="answer-meta"><p id="answer-scope" class="answer-scope"></p><p id="request-status" class="request-status" role="status" aria-live="polite"></p></div>
       <button id="retry-question" class="outline-button retry-question" type="button" hidden>Retry this question</button>
-      <p id="request-status" class="request-status" role="status" aria-live="polite"></p>
-      <div id="answer-progress" class="answer-progress" hidden><ol aria-label="Answer progress"><li data-phase="search"><span>Search conversations</span><span class="phase-state">In progress</span></li><li data-phase="compose"><span>Check sources and write answer</span><span class="phase-state">Waiting</span></li></ol><div class="progress-actions"><p id="answer-elapsed" aria-live="off">Elapsed 0:00</p><button id="cancel-question" type="button" class="text-link">Cancel</button></div></div>
-      <div class="answer-layout"><div>
-        <div id="answer" aria-live="polite"></div>
+      <section id="answer-progress" class="answer-progress" aria-labelledby="progress-heading" hidden>
+        <div class="progress-heading"><h2 id="progress-heading">Preparing your answer</h2><span id="answer-step">Step 1 of 3</span></div>
+        <ol aria-label="Answer progress">
+          <li data-phase="search"><span class="phase-marker" aria-hidden="true">1</span><div><span class="phase-label">Search conversations</span><span class="phase-state">In progress</span></div></li>
+          <li data-phase="review"><span class="phase-marker" aria-hidden="true">2</span><div><span class="phase-label">Check source clips</span><span class="phase-state">Waiting</span></div></li>
+          <li data-phase="compose"><span class="phase-marker" aria-hidden="true">3</span><div><span class="phase-label">Prepare answer</span><span class="phase-state">Waiting</span></div></li>
+        </ol>
+        <div class="progress-actions"><p id="answer-elapsed" aria-live="off">Elapsed 0:00</p><button id="cancel-question" type="button" class="text-link">Cancel</button></div>
+      </section>
+      <div class="answer-layout">
+        <section id="answer-summary" class="answer-summary" aria-label="Answer"><h2 id="answer-label" hidden>Answer</h2><div id="answer" aria-live="polite"></div></section>
         <section id="moments-section" hidden><div class="section-heading"><h2 id="moments-heading">Source clips</h2><span id="moment-count"></span></div><div id="moments"></div></section>
         <section id="answer-composer" class="answer-composer" aria-labelledby="next-question-heading"><div class="next-question-heading"><h2 id="next-question-heading">Ask another question</h2><button type="button" data-history class="text-link">Past questions <svg class="icon"><use href="#i-arrow"/></svg></button></div><div id="answer-composer-body"></div></section>
-      </div></div>
+      </div>
     </section>
     <div id="player-home" hidden><section id="watch-panel" class="watch-panel" aria-label="Clip player" hidden><div class="watch-label"><span>Selected clip</span><button id="close-watch" type="button" class="icon-button" aria-label="Close supporting video"><svg class="icon"><use href="#i-close"/></svg></button></div><div id="watch-container" class="video-container"></div><div id="watch-details"></div></section></div>
   </main>

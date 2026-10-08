@@ -43,6 +43,7 @@ class ReaderStreamTests(unittest.TestCase):
         progress({"type": "stage", "message": "Searching", "phase": "internal-provider-stage"})
         # Even an older retrieval implementation must not publish candidates.
         progress({"type": "excerpts", "excerpts": [self.citation]})
+        progress({"type": "stage", "phase": "review", "message": "Checking clips", "excerpts": [self.citation]})
         progress({"type": "stage", "phase": "compose", "message": "Preparing your answer", "excerpts": [self.citation]})
         if not self.release.wait(5):
             raise RuntimeError("Test never released synthesis")
@@ -57,6 +58,7 @@ class ReaderStreamTests(unittest.TestCase):
         with urlopen(self.request(), timeout=5) as response:
             self.assertIn("application/x-ndjson", response.headers["Content-Type"])
             self.assertEqual(json.loads(response.readline()), {"type": "stage", "message": "Searching"})
+            self.assertEqual(json.loads(response.readline()), {"type": "stage", "phase": "review", "message": "Checking clips"})
             event = json.loads(response.readline())
             self.assertEqual(event, {"type": "stage", "phase": "compose", "message": "Preparing your answer"})
             self.assertFalse(self.release.is_set())

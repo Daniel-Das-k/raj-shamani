@@ -641,10 +641,13 @@ function updateResume() {
 }
 function setProgress(text, error = false, loading = false) { $('#request-status').textContent = text; $('#request-status').className = 'request-status' + (error ? ' error' : '') + (loading ? ' loading' : ''); }
 function generationPhase(phase) {
-  if (!['search', 'compose'].includes(phase)) return;
-  document.querySelectorAll('#answer-progress [data-phase]').forEach(node => {
-    const active = node.dataset.phase === phase;
-    const complete = phase === 'compose' && node.dataset.phase === 'search';
+  const phases = ['search', 'review', 'compose'], current = phases.indexOf(phase);
+  if (current < 0) return;
+  $('#answer-step').textContent = `Step ${current + 1} of ${phases.length}`;
+  document.querySelectorAll('#answer-progress [data-phase]').forEach((node, index) => {
+    const active = index === current, complete = index < current;
+    node.dataset.state = active ? 'active' : complete ? 'complete' : 'waiting';
+    node.querySelector('.phase-marker').textContent = complete ? '✓' : String(index + 1);
     if (active) node.setAttribute('aria-current', 'step');
     else node.removeAttribute('aria-current');
     node.querySelector('.phase-state').textContent = active ? 'In progress' : complete ? 'Done' : 'Waiting';
@@ -652,8 +655,9 @@ function generationPhase(phase) {
 }
 function beginAnswer(question, options = {}) {
   stopVideo(); navigate('answer', options); $('#asked-question').textContent = question; $('#answer').replaceChildren(); $('#moments').replaceChildren(); $('#moments-section').hidden = true;
+  $('#answer-label').hidden = true;
   $('#retry-question').hidden = true;
-  $('#answer-scope').textContent = lastQuestion?.sourceID ? 'Searched in: ' + (findVideo(lastQuestion.sourceID)?.title || 'Selected conversation') : 'Searched across all conversations';
+  $('#answer-scope').textContent = lastQuestion?.sourceID ? 'Conversation: ' + (findVideo(lastQuestion.sourceID)?.title || 'Selected conversation') : 'All conversations';
   $('#watch-panel').hidden = true; $('#watch-container').replaceChildren(); setProgress('');
 }
 function momentCard(citation, index, guide) {
@@ -681,6 +685,7 @@ function renderMoments(items) {
 }
 function renderAnswer(answer) {
   $('#answer').replaceChildren();
+  $('#answer-label').hidden = true;
   $('#retry-question').hidden = true;
   if (/^[a-f0-9]{32}$/.test(answer.record_id || '')) {
     answerRoute = 'answer/' + answer.record_id;
@@ -703,6 +708,7 @@ function renderAnswer(answer) {
   if (!noEvidence) (answer.recommendations || []).forEach(addMoment);
   points.forEach(p => (p.citations || []).forEach(c => addMoment({citation: c, summary: c.summary})));
   if (points.length) {
+    $('#answer-label').hidden = false;
     const prose = el('div', 'answer-prose');
     const details = el('ul', 'answer-points');
     points.forEach((point, index) => {
