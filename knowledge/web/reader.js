@@ -137,7 +137,7 @@ async function persist(next) {
       try {
         const result = await api('/api/collections', {method: 'PUT', headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({revision: collectionRevision, items: next})});
-        collectionRevision = result.revision; collections = result.items; updateSavedCount();
+        collectionRevision = result.revision; collections = result.items; updateCollectionCount();
         collectionChannel?.postMessage({owner: account.id}); return true;
       } catch (error) {
         if (error.status === 409) {
@@ -148,11 +148,17 @@ async function persist(next) {
         toast(error.message); return false;
       }
     }
-    try { localStorage.setItem(storageKey, JSON.stringify(next)); collections = next; updateSavedCount(); return true; }
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); collections = next; updateCollectionCount(); return true; }
     catch { toast('This could not be saved. Check the available browser storage.'); return false; }
   } finally { collectionSaving = false; updateSaveButtons(); }
 }
-function updateSavedCount() { $('#saved-count').textContent = String(collections.reduce((n, c) => n + c.items.length, 0)); updateSaveButtons(); }
+function updateCollectionCount() {
+  const count = collections.length, label = `${count} collection${count === 1 ? '' : 's'}`;
+  const badge = $('#collection-count');
+  badge.textContent = String(count); badge.title = label; badge.setAttribute('aria-label', label);
+  badge.hidden = !collectionsReady;
+  updateSaveButtons();
+}
 function refreshCollectionOptions() {
   const selected = $('#collection-select').value || currentCollection;
   $('#collection-select').replaceChildren(...collections.map(c => { const o = el('option', '', c.name); o.value = c.id; return o; }));
@@ -571,7 +577,7 @@ function bind() {
   $('#video-dialog').addEventListener('close', () => { $('#video-container').replaceChildren(); lastFocused?.focus(); });
   $('#save-dialog').addEventListener('close', () => lastFocused?.focus());
   window.addEventListener('hashchange', followRoute);
-  window.addEventListener('storage', event => { if (!accountRequired && (event.key === storageKey || event.key === null)) { collections = loadCollections(); updateSavedCount(); if (view === 'saved') renderSaved(); if ($('#save-dialog').open) refreshCollectionOptions(); } });
+  window.addEventListener('storage', event => { if (!accountRequired && (event.key === storageKey || event.key === null)) { collections = loadCollections(); updateCollectionCount(); if (view === 'saved') renderSaved(); if ($('#save-dialog').open) refreshCollectionOptions(); } });
   collectionChannel?.addEventListener('message', event => { if (event.data?.owner === account?.id) syncCollections(true); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncCollections(true); });
   $('#account-button').addEventListener('click', async () => {
@@ -600,7 +606,7 @@ async function refreshCollections() {
   // A delayed read must never replace a newer save or another refresh.
   if (version !== collectionLoadVersion || collectionSaving || result.revision < collectionRevision) return;
   const changed = !collectionsReady || result.revision !== collectionRevision;
-  collections = result.items; collectionRevision = result.revision; collectionsReady = true; updateSavedCount();
+  collections = result.items; collectionRevision = result.revision; collectionsReady = true; updateCollectionCount();
   if (changed && view === 'saved') renderSaved();
   if (changed && $('#save-dialog').open) refreshCollectionOptions();
 }
@@ -625,7 +631,7 @@ async function init() {
       toast(guestMode ? 'Your browser session could not load. Allow cookies and refresh before asking or saving.'
         : 'Your account could not load. Refresh before asking or saving.'); return;
     }
-  } else { collections = loadCollections(); updateSavedCount(); }
+  } else { collections = loadCollections(); updateCollectionCount(); }
   try {
     const data = await api('/catalog.json'); catalog = data.episodes.filter(v => validID(v.id));
     renderHome();
