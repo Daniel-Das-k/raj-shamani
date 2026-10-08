@@ -5,8 +5,10 @@ import json
 import os
 from pathlib import Path
 from .answer_language import LANGUAGE_INSTRUCTION
+from .request_timeout import remaining_timeout
 
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
+DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 
 
 def require_key(name: str) -> str:
@@ -39,7 +41,7 @@ class GroqJSON:
 
     def complete(self, system: str, data: dict) -> dict:
         from groq import Groq
-        with Groq(api_key=require_key("GROQ_API_KEY"), max_retries=0, timeout=120) as client:
+        with Groq(api_key=require_key("GROQ_API_KEY"), max_retries=0, timeout=remaining_timeout(120)) as client:
             response = client.chat.completions.create(
                 model=self.model_name,
                 temperature=0, max_completion_tokens=4000,
@@ -59,14 +61,14 @@ class OpenAIJSON:
     supports_schema = True
     @property
     def model_name(self):
-        return os.getenv('OPENAI_CHAT_MODEL', 'gpt-4.1-mini')
+        return os.getenv('OPENAI_CHAT_MODEL') or DEFAULT_OPENAI_MODEL
 
     def complete(self, system: str, data: dict, *, schema=None) -> dict:
         from openai import OpenAI
         output_format = {'type': 'json_object'} if schema is None else {
             'type': 'json_schema', 'name': 'evidence_checks', 'strict': True, 'schema': schema}
         with OpenAI(api_key=require_key('OPENAI_API_KEY'), base_url='https://api.openai.com/v1',
-                    max_retries=0, timeout=120) as client:
+                    max_retries=0, timeout=remaining_timeout(120)) as client:
             response = client.responses.create(
                 model=self.model_name, temperature=0, max_output_tokens=4000,
                 store=False, text={'format': output_format},

@@ -55,6 +55,23 @@ class ImportBudgetTests(unittest.TestCase):
         with self.assertRaises(BudgetStop):
             self.budget.authorize(client, 'hello')
 
+    def test_malformed_budget_can_be_stopped_persistently(self):
+        for value in [[], None, 'invalid']:
+            with self.subTest(value=value):
+                self.path.write_text(json.dumps(value))
+                with self.assertRaises(BudgetStop):
+                    self.budget.video_ids(0)
+                self.budget.stop('Invalid budget configuration')
+                self.assertTrue(json.loads(self.path.read_text())['stopped'])
+
+    def test_malformed_billing_shape_fails_closed(self):
+        for value in [[], None, 'invalid']:
+            client = Mock()
+            client.request.return_value = value
+            with self.subTest(value=value), self.assertRaises(BudgetStop):
+                self.budget.authorize(client, 'hello')
+        self.assertNotIn('submitted', json.loads(self.path.read_text()))
+
     def test_stop_and_document_limit_persist_across_restart(self):
         self.budget.stop('Review credits')
         client = Mock()

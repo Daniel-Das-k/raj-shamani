@@ -1,5 +1,163 @@
 # Knowledge Retriever
 
+## AWS deployment without sign-in
+
+The production entry point is `knowledge.public_server:create_app`, served by Uvicorn.
+`python -m knowledge serve` remains the loopback-only local demo. AWS deployments default
+to `PUBLIC_AUTH_MODE=guest`: the site opens directly without sign-up or sign-in. Each
+browser receives a random, secure HttpOnly cookie; history and collections are scoped
+to that browser session. The cookie lasts 30 days; clearing cookies or letting it expire
+ends access to those saves. There is no cross-device recovery or synchronization in guest
+mode. Local developer history is excluded from releases, and old unowned or authenticated
+history is never assigned to a guest. Collections use revision checks to prevent one tab
+silently overwriting another. Import and raw-search APIs remain unavailable publicly.
+
+Set `PUBLIC_AUTH_MODE=cognito` in `.env` and redeploy only if separate signed-in accounts
+are wanted. The existing Cognito pool is preserved but unused in guest mode.
+
+The deployment code provisions a dedicated VPC, one `t3.small` EC2 instance in Mumbai
+by default, a retained encrypted 20 GiB data volume, CloudFront with a private VPC
+origin and an AWS HTTPS hostname, and a Cognito user pool. No custom domain is needed.
+The instance's public IPv4 is for outbound provider/management connections. Inbound
+port 8000 admits only AWS's managed CloudFront origin-facing prefix list; SSH has no
+inbound rule. CloudFront uses a private VPC-origin ENI, and the app verifies its secret
+origin header and expected hostname. A VPC CIDR rule alone does not admit this traffic.
+Provider keys stay in Secrets Manager and are loaded using a scoped instance role.
+
+Install the tested Python 3.12 runtime and prepare a release without creating resources:
+
+```bash
+.venv/bin/python -m pip install -r requirements-production.txt
+.venv/bin/python -m deployment.aws_deploy
+```
+
+This writes a credential-free release archive, its checksum and the CloudFormation
+template into ignored `.deployment/`. It includes the original 50-video snapshot,
+not response history, diagnostics, `.env`, AWS credentials or virtual environments.
+Validate `.deployment/cloudformation.json` with `cfn-lint` before provisioning.
+
+For the default `knowledge-reader` stack in Mumbai, a console administrator can create
+a customer managed policy named `KnowledgeReaderDeploy` from
+[`deployment/knowledge-reader-deploy-policy.json`](deployment/knowledge-reader-deploy-policy.json)
+and attach it to the dedicated deployment user. In IAM, open **Policies → Create policy
+→ JSON**, paste the file, review the console's validation results and save. Back in
+the user wizard, choose **Attach policies directly**, refresh the list and select
+`KnowledgeReaderDeploy`. This copy contains the verified deployment account ID ending
+in `7065`. Different accounts, stack names or regions require a policy update. IAM
+policy variables cannot replace the account portion of a resource ARN; use the actual
+12-digit account ID there.
+
+This is a privileged bootstrap policy, not a strict tenant isolation boundary.
+EC2/Cognito provisioning in Mumbai and CloudFront provisioning are available through
+CloudFormation; storage, secrets, logs and IAM resources use the deployment's name
+prefixes, and shell installation requires the project's instance tags. The ability to
+set inline policies on the runtime role remains powerful and must be trusted like
+administrator access. Keep this credential limited to the deployment operator and
+deactivate its key when it is no longer needed. The application uses its own instance
+role and does not need the operator's key. The policy is prepared locally; IAM console
+validation and actual account permissions still need to be checked before deployment.
+
+Add AWS credentials to the project's ignored `.env` locally, preserving existing
+provider settings. Do not paste real keys into chat or commit them:
+
+```dotenv
+AWS_ACCESS_KEY_ID=your_access_key_id
+AWS_SECRET_ACCESS_KEY=your_secret_access_key
+AWS_DEFAULT_REGION=ap-south-1
+# Set AWS_SESSION_TOKEN only when using temporary credentials, with their matching token.
+```
+
+An explicit `--profile PROFILE_NAME` uses that AWS profile. Otherwise, a complete key
+pair in the process environment takes precedence over `.env`, followed by the normal
+AWS SDK credential chain when neither contains keys. Partial credentials fail rather
+than mixing sources; temporary credentials must include their token in the same source.
+`--region` overrides environment/`.env` region settings; the default is Mumbai.
+The standard AWS CLI does not read this project's `.env`. Use the deployment command
+to check credentials without packaging or creating resources, then deploy:
+
+```bash
+.venv/bin/python -m deployment.aws_deploy --check-aws
+.venv/bin/python -m deployment.aws_deploy --deploy --region ap-south-1
+# Add --profile PROFILE_NAME for a nondefault AWS profile.
+```
+
+The credential check verifies identity only; provisioning can still fail if the
+account lacks a required deployment permission.
+
+Both provider keys must already exist in the local environment or `.env`; the script
+transfers only these application settings to this stack's Secrets Manager secret.
+Nonempty provider keys/model settings in the project's `.env` take precedence over
+inherited shell values, so replacing a rejected key locally updates the deployed key.
+It never copies your AWS access keys to the server. AWS credits are subject to your
+account's terms and do not automatically pay the separate OpenAI/Supermemory accounts.
+Provisioning needs permissions for CloudFormation, EC2/VPC, IAM, CloudFront VPC origins,
+Cognito, S3, Secrets Manager, Systems Manager, CloudWatch and Logs, including creation
+of any required AWS service-linked roles. It creates a new named stack and refuses to
+reuse an unrelated stack. Existing infrastructure changes require a reviewed change
+set; rerunning an unchanged stack installs a new application release.
+
+For an initial stack created with the older VPC-CIDR ingress rule, run
+`.venv/bin/python -m deployment.repair_cloudfront --apply`. This narrowly scoped
+migration creates and checks a CloudFormation change set, and refuses any changes
+except one security-group ingress update without replacement. It preserves the
+server, data volume and accounts. The deployment policy needs prefix-list discovery
+and change-set permissions; the refreshed JSON includes both.
+
+CloudFormation resources have explicit names matching the deployment policy's
+prefixes; named IAM roles require `CAPABILITY_NAMED_IAM`. A failed first deployment
+that reaches `ROLLBACK_COMPLETE` before creating any app instance or data volume can
+be retried with `--deploy --recover-failed-stack`. This explicit recovery mode saves
+the old resource inventory in `.deployment/failed-stack-resources.json`, disables
+termination protection on that failed stack, removes its stack record and starts
+again. It refuses healthy, unrelated or still-changing stacks and any stack that
+created an app instance/data volume. Persistent resources must retain `DeletionPolicy:
+Retain` and remain preserved. The policy includes `DeleteStack` and
+`UpdateTerminationProtection` only for the default stack; these are privileged recovery
+permissions. Retained resources from a failed attempt must be reviewed separately.
+
+Deployments seed an empty data disk and preserve existing data on later releases.
+Systemd restarts failed processes. Daily backups use SQLite's online backup API and
+upload databases/captions/diagnostics to an encrypted, private S3 bucket with 35-day
+backup retention. The installer creates and verifies the first backup before reporting
+success. Logs exclude questions and authentication callback query strings, and are
+retained in CloudWatch for 14 days. CloudWatch alarms report instance failures and
+missing backups in the console; email/SNS notifications are not configured.
+
+The default limits are two concurrent answers, one per browser session/account, 20
+questions per browser session/account per UTC day, and 200 total per UTC day. Guest mode
+also limits each connecting IP to 20 per UTC day, so clearing cookies does not reset the
+allowance. People sharing a network share that limit. Only an HMAC of the address is stored
+for usage accounting. New browser sessions are limited to 10 per IP per minute and 10,000
+active sessions in total. Attempts count toward question limits,
+including provider failures. These are request limits, not a guaranteed monetary cap.
+Question limits can be adjusted in the runtime secret followed by a service restart.
+Guest sessions expire after 30 days. In optional Cognito mode, sessions expire after at
+most one hour; Cognito supplies sign-up, email verification and password recovery. Its
+built-in email sender has service limits; configure an SES sender before expanding
+sign-up volume. This is one instance in one availability zone, so backups
+provide recovery, not automatic high availability. Do not increase Uvicorn workers or
+add instances without coordinating admission limits and moving account storage to a
+shared database.
+
+Verify through the actual AWS hostname before announcing a launch: open two independent
+browser profiles (or two accounts in Cognito mode); test inaccessible cross-session response IDs; save/reopen a
+collection; ask both an off-topic and supported question; restart the service; check
+that saved data survives; and restore a downloaded backup into an isolated directory.
+Local tests use simulated Cognito/provider responses and cannot prove AWS permissions,
+email delivery, instance bootstrap or the deployed network path work.
+
+Operational commands through Systems Manager: `systemctl status knowledge-reader`,
+`systemctl restart knowledge-reader`, and `systemctl start knowledge-reader-backup`.
+Release paths and resource IDs are saved in `.deployment/aws-resources.json`. For a code
+rollback, point `/opt/knowledge-reader/current` to the prior tested release and restart;
+database schema compatibility must be checked before rolling back. Failed health checks
+during installation restore the prior code symlink automatically when one exists.
+Restore backups to a separate directory with a safe tar extraction mode and verify
+database integrity before replacing live data with the service stopped. Never overwrite
+the live data directory as part of an ordinary release. Stack termination protection
+and retained data/bucket/user-pool resources prevent accidental deletion; retained
+resources continue to incur charges until explicitly cleaned up.
+
 ## Figuring Out reader
 
 The browser now opens an editorial discovery experience with real episodes from
@@ -22,10 +180,27 @@ unchecked clips on screen. A final answer releases the form immediately, even if
 the connection stays open. Slow requests show an update after 30 seconds; the browser
 stops waiting after five minutes and preserves any next-question draft. Disconnecting
 does not cancel server generation: a completed response may still appear in history.
+Provider calls share a 270-second server budget, so each call uses the time remaining
+instead of starting a fresh full timeout. This is cooperative: it prevents subsequent
+calls after expiry but cannot forcibly interrupt all local work or a continuously
+active network connection. Catalog and history requests have a separate 15-second
+browser timeout. Failed history pagination preserves loaded rows and retries the same
+page; the video selector includes all pages of the ready catalog.
 
-The answer view includes an adjacent source player, original-caption disclosure,
-timestamp links, and saved moments. Playback uses YouTube; individual videos may
-have embedding or availability restrictions. Collections are local to the browser,
+The answer view shows a reply followed by related clips. Each clip has two actions:
+**Play clip** plays the selected time range on this page; **Full video** opens the
+complete episode on YouTube without clip timing parameters. Numbered answer references
+play their matching clips directly and keep the saved-answer URL unchanged. The player
+appears only after a clip is selected. Original-caption disclosures, duplicate player
+links, and raw JSON download links in question history are not shown. Original captions
+remain available to the backend for evidence validation and stored response data.
+
+Playback uses YouTube; individual videos may have embedding or availability
+restrictions. **Play clip** passes both original caption
+bounds to the embedded player: the start is rounded down and the end rounded up to
+whole seconds. YouTube stops the excerpt at that end time. The iframe sends the embedding origin so YouTube can
+identify the site even under the production page's `no-referrer` policy; it does not
+send the page path, question or fragment. Collections are local to the browser,
 while past questions remain in `data/responses.sqlite3`.
 
 UI assets: `knowledge/web/index.html`, `reader.css`, `reader.js`, `catalog.json`.
@@ -33,6 +208,10 @@ Asset provenance is in `knowledge/web/MEDIA.md`. The previous browser script and
 styles remain in the repository for the historical regression suite.
 
 ### Verify the reader
+
+`npm run test:player` checks clip bounds, switching clips, replay, answer references,
+full-video links, saved moments after reload, and the iframe's origin-only Referer in Chrome. All requests
+are intercepted locally; it needs no running server and makes no paid requests.
 
 With the local Python server running and Google Chrome installed:
 
@@ -48,22 +227,60 @@ and simulated provider responses; it never makes a paid answer request. Screensh
 are saved under `data/reader-check/`. The browser suite also exercises delayed chunks,
 off-topic/no-match outcomes, clarification, failed checks, provider failures,
 disconnects, malformed responses, split UTF-8, timeouts, and recovery.
+It also covers stale history responses, pagination retries, catalogs exceeding 50
+videos, and recovery of valid collection entries alongside malformed entries.
 `npm test` runs the earlier browser-script
 regressions. Live answer accuracy and latency require the original dataset and keys.
+`npm run test:accounts` checks the production account UI using simulated identity and
+storage endpoints, including isolation, persistence, conflicts and failed saves. Install
+`requirements-production.txt` to run all Python tests including the public server.
 
-The Python server serves both the frontend and API at http://127.0.0.1:8000;
-start it with `.venv/bin/python -m knowledge serve`. No separate frontend server
-or API URL configuration is needed. With the archive and keys available, run
+### Run the frontend and backend separately
+
+From the repository root, install the frontend development dependency once with
+`npm install` (Node.js 22.12+ is supported). Start each process in its own terminal:
+
+```bash
+# Terminal 1 — backend API on http://127.0.0.1:8000
+npm run dev:backend
+```
+
+```bash
+# Terminal 2 — frontend on http://127.0.0.1:5173
+npm run dev
+```
+
+Open **http://127.0.0.1:5173**. Vite serves the files in `knowledge/web/` and forwards
+`/api` requests, including streamed answers, to the backend on port 8000. Keep both
+terminals running for answers and history. Frontend browsing and browser collections
+also work while the backend is stopped. Edit `knowledge/web/` and refresh the page to
+see changes. `npm run dev:frontend` is an alias for the frontend command.
+
+For a different backend port, start `.venv/bin/python -m knowledge serve --port 8001`
+and then `BACKEND_URL=http://127.0.0.1:8001 npm run dev`. Provider and AWS credentials
+belong in the repository's server-side `.env`; do not put them in `knowledge/web/` or
+variables prefixed with `VITE_`. Browser collections are stored per origin, so those
+saved on port 8000 do not automatically appear on port 5173.
+
+The existing single-process command, `.venv/bin/python -m knowledge serve`, still
+serves both the frontend and API on port 8000. Production deployment continues to
+serve the app through the authenticated Python server; Vite is for local development.
+With the archive and keys available, run
 `npm run test:reader:live` for an opt-in browser check using one real question
-and the configured paid providers. It checks the streamed answer, citations,
-and reopening backend history without another generation request. The exact
-response and a screenshot are saved in `data/reader-live-check/`.
+and the configured paid providers. It supports guest sessions and checks the exact
+streamed answer, every clip's bounds and full-video link, numbered references,
+readability from 320 to 1440 pixels, and reopening history without another generation
+request. Set `APP_URL` to check a deployed reader. The exact response and light/dark
+screenshots are saved in `data/reader-live-check/`; pass a different output directory
+after `--` to keep these artifacts elsewhere. YouTube frames are intercepted in this
+content check; real playback and automatic stopping require a separate live check.
 
 For live off-topic and clarification checks through the actual reader API, run
 `.venv/bin/python tests/reader_offtopic_live.py --output data/offtopic-live/results.json`
 with the server running. This makes nine paid-provider requests, including a relevant
 control question, and saves exact stream events and outcome checks. Review the content
 as well as the automatic checks. Use a new output path for a fresh run.
+The command exits unsuccessfully if any requested case fails its outcome checks.
 
 ---
 
@@ -81,8 +298,9 @@ no-match message with no recommendations. It does not force the nearest backgrou
 clip into an answer to an unrelated request, such as cooking instructions. Ambiguous
 questions can receive a clarification. Generated answers, summaries, limitations,
 clarifications, and interface messages are always in English, even when the question
-uses or requests another language. Original transcript quotes stay unchanged in the
-expandable evidence section. Caption interpretation and answer quality still have limits.
+uses or requests another language. Original transcript quotes remain unchanged in
+the stored evidence used for validation. Caption interpretation and answer quality
+still have limits.
 
 ## Run the knowledge base
 
@@ -103,10 +321,23 @@ python -m pip install -r requirements-channels.txt
 python -m knowledge serve
 ```
 
-Open http://127.0.0.1:8000 and ask a question. The sidebar shows the indexed video
-catalog; recommendations include summaries, relevance explanations, limitations,
-expandable original captions and timestamp links. Descriptions and their checks use
-`OPENAI_CHAT_MODEL=gpt-4.1-mini` by default.
+Open http://127.0.0.1:8000 and ask a question. Browse the video catalog or select an
+indexed conversation in the question form. Recommendations show summaries, any
+limitations, and **Play clip** / **Full video** controls. Descriptions and their checks use
+`OPENAI_CHAT_MODEL=gpt-4.1-mini` by default, through OpenAI's Responses API.
+Planning, passage summaries, answer synthesis, and evidence checks use this same model;
+there is no automatic fallback to another provider or a more expensive model.
+Requests use `temperature=0` and a 4,000-token output limit. Citation validation,
+support checks, and abstention rules remain required; model output does not
+guarantee correct caption interpretation.
+See [the model specifications](https://developers.openai.com/api/docs/models/gpt-4.1-mini).
+
+The root `.env` and `.env.example` contain only the caption reader's OpenAI,
+Supermemory, guest/auth-mode, and AWS deployment settings. Historical transcription
+and Groq experiments are opt-in tools; their credentials are not part of the reader
+configuration. Supply their documented variables in the shell only when running them.
+After changing the model, restart the local server. An existing AWS deployment keeps
+its Secrets Manager settings until the updated release is deployed.
 The OpenAI API account needs its own available quota; Supermemory credits are separate. FFmpeg, Deepgram, and local embeddings are unnecessary
 for this caption-based browser.
 
@@ -116,7 +347,7 @@ text with video IDs and revision metadata. This is retrieval-augmented generatio
 (RAG), with no application-managed graph database. Back up the entire data directory.
 The reader does not adopt new trial documents or start an import worker. A fresh
 checkout needs the existing local data directory and access to the corresponding
-Supermemory container; indexed data and credentials are not committed to Git.
+Supermemory container; credentials and runtime response history are not committed to Git.
 
 This repository includes the read-only 50-video catalog and timed-caption snapshot
 under `data/channels.sqlite3` and `data/supermemory-trial/timed-captions/`. These
@@ -132,14 +363,16 @@ that the model interprets a quote correctly.
 See [channel import details](CHANNEL_IMPORT.md), the earlier
 [question-and-answer review](VIDEO_QA_REVIEW.md), and
 [actual generated replies](VIDEO_QA_ACTUAL_ANSWERS.md).
-This remains a local single-user app, without public hosting or authentication.
+The default demo remains local and single-user. The separate AWS production entry
+point described above adds isolated browser sessions and optional account authentication.
 
 ## Retrieval and answer reliability
 
 The reader combines Supermemory semantic search with keyword search over the existing
 saved captions, using up to two query reformulations and relevance selection. It keeps
 nearby transcript context and preserves canonical timestamp links. Each of up to six
-passages is summarized without the user question. A separate selection step sees the
+passages is summarized without the user question. A malformed or incomplete summary
+gets one source-only repair attempt and must still pass the original checks. A separate selection step sees the
 question and these fixed summaries, then adds a relevance explanation and scope limit.
 A separate review checks each proposed card against its own original excerpt and can
 downgrade a direct match to related, or reject it. Up to three checked, nonredundant
@@ -149,8 +382,11 @@ can be removed while keeping independently checked advice. A separate scope chec
 validates what the reply says the retrieved passages do not establish. Partial replies
 name the missing part. One repair is allowed; if synthesis cannot be verified or its
 provider fails, a clear failure message precedes the checked moments and offers retry.
-The reader sets `allow_closest=False`: rejected relevance or a writer finding no
-substantive answer produces a no-match outcome with no cards. The earlier closest
+The reader sets `allow_closest=False`: ranking can reject all candidates immediately,
+avoiding unnecessary summary and synthesis requests for unrelated questions. Rejected
+relevance or a writer finding no substantive answer produces a no-match outcome with
+no cards. Missing original captions produce a data-availability error instead of a
+misleading no-match result. The earlier closest
 background fallback remains available to offline experiments and other library
 callers. Search still includes a broader subject query and may retrieve nearby
 candidates; retrieval alone does not qualify a clip for display. A no-match outcome
@@ -160,7 +396,7 @@ A model check can still miss semantic mistakes or overstate how useful a clip is
 See [the workflow and limits](CHANNEL_IMPORT.md).
 
 The [15-question English system check](ENGLISH_15_QUERY_SYSTEM_CHECK.md) records the
-current closest-content workflow: 11 substantive replies, 3 closest-content replies,
+earlier closest-content workflow: 11 substantive replies, 3 closest-content replies,
 and 1 clarification, with no request errors. All displayed citations matched saved
 captions, but assistant review found six responses needing quality revisions. The
 report includes every exact reply, reference, limitation, and reproduction command.
@@ -202,9 +438,11 @@ cp .env.example .env
 ```
 
 On Windows, activate with `.venv\Scripts\Activate.ps1` in PowerShell and use
-`Copy-Item .env.example .env`. Set `DEEPGRAM_API_KEY` and `OPENAI_API_KEY` in `.env`.
-OpenAI is used for understanding questions and generating answers; the new pipeline
-does not require Groq transcription or pyannote. `HF_TOKEN` is only needed for
+`Copy-Item .env.example .env` on first setup. Set `OPENAI_API_KEY` in `.env` and
+supply `DEEPGRAM_API_KEY` in the shell environment for this optional transcription
+backend. OpenAI is used for understanding questions and generating answers;
+Groq transcription and pyannote are not required. The active caption reader does
+not need transcription credentials. `HF_TOKEN` is only needed in the shell for
 the separate original pyannote experiment below.
 
 ```bash
@@ -446,7 +684,9 @@ python -m venv .venv
 Copy-Item .env.example .env
 ```
 
-Add credentials to `.env`. Never commit that file.
+Keep `.env` for the active reader. Supply the Groq, Deepgram, or Hugging Face
+credentials needed by these historical pilot commands through the shell environment.
+Never commit credentials.
 
 ## Groq and local speaker separation
 

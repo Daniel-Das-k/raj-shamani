@@ -69,7 +69,9 @@ class RajLibraryTests(unittest.TestCase):
         self.client.search.return_value = {"results": [
             {"metadata": {"video_id": "outside0001"}},
             {"metadata": {"video_id": "pending0001"}}]}
-        self.assertEqual(self.library.search("Explain leadership")["excerpts"], [])
+        with self.assertRaisesRegex(ValueError, 'original captions.*unavailable'):
+            self.library.search("Explain leadership")
+        self.client.search.assert_not_called()
 
     def test_clarification_is_saved_without_generating_an_answer(self):
         self.llm.model_name = 'synthetic-model'

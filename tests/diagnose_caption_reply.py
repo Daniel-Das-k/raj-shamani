@@ -22,8 +22,8 @@ if __name__ == "__main__":
         sources[video_id] = json.loads((library.directory / f'{video_id}-{revision[:12]}.json').read_text())
     audit = {'question': question, 'calls': []}
     class DiagnosticLLM(OpenAIJSON):
-        def complete(self, system, data):
-            result = super().complete(system, data)
+        def complete(self, system, data, **kwargs):
+            result = super().complete(system, data, **kwargs)
             audit['calls'].append({'kind': 'verification' if 'items' in data else 'generation', 'result': result})
             return result
     result = answer_captions(question, citations, sources, DiagnosticLLM(), audit, whole_passages=True)

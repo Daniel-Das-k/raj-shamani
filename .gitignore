@@ -1,4 +1,6 @@
 .venv/
+.venv-deploy/
+.deployment/
 .env
 cache/
 __pycache__/

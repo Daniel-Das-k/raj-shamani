@@ -20,6 +20,7 @@ from .store import Store
 from .transcripts import citation, youtube_source
 from .translations import translate_citations
 from .response_history import ResponseHistory
+from .request_timeout import AnswerTimeout, answer_deadline, remaining_timeout
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = Path(__file__).resolve().parent / "web"
@@ -28,8 +29,8 @@ STATIC = Path(__file__).resolve().parent / "web"
 def load_settings():
     from dotenv import dotenv_values
     # Read changes made to .env while the demo is running; never return key values.
-    values = dotenv_values(ROOT / ".env")
-    for key in ("DEEPGRAM_API_KEY", "SUPERMEMORY_API_KEY", "OPENAI_API_KEY", "OPENAI_CHAT_MODEL", "GROQ_API_KEY", "GROQ_CHAT_MODEL", "DEEPGRAM_DIARIZER"):
+    values = dotenv_values(ROOT / ".env", interpolate=False)
+    for key in ("SUPERMEMORY_API_KEY", "OPENAI_API_KEY", "OPENAI_CHAT_MODEL"):
         if values.get(key):
             os.environ[key] = values[key]
 
@@ -108,21 +109,31 @@ class Demo:
 
     def answer(self, question):
         load_settings()
-        with self.runtime_lock, closing(Store(self.database)) as store:
-            return ask(question, store, self.embedder, self.llm, translate=True)
+        if not self.runtime_lock.acquire(blocking=False):
+            raise ValueError('The library is busy processing another request. Please try again shortly.')
+        try:
+            with closing(Store(self.database)) as store:
+                return ask(question, store, self.embedder, self.llm, translate=True)
+        finally:
+            self.runtime_lock.release()
 
     def search(self, question):
         if not isinstance(question, str) or not question.strip() or len(question) > 6000:
             raise ValueError("Enter a question of up to 6,000 characters.")
         load_settings()
-        with self.runtime_lock, closing(Store(self.database)) as store:
-            passages = store.search([question], self.embedder, limit=5)
-            excerpts = [citation(p, p["words"][0]["index"], p["words"][-1]["index"]) for p in passages]
-            if excerpts and os.getenv("OPENAI_API_KEY"):
-                try:
-                    excerpts = translate_citations(excerpts, store, self.llm)
-                except Exception:
-                    excerpts = [{**c, "translation_status": "unavailable"} for c in excerpts]
+        if not self.runtime_lock.acquire(blocking=False):
+            raise ValueError('The library is busy processing another request. Please try again shortly.')
+        try:
+            with closing(Store(self.database)) as store:
+                passages = store.search([question], self.embedder, limit=5)
+                excerpts = [citation(p, p["words"][0]["index"], p["words"][-1]["index"]) for p in passages]
+                if excerpts and os.getenv("OPENAI_API_KEY"):
+                    try:
+                        excerpts = translate_citations(excerpts, store, self.llm)
+                    except Exception:
+                        excerpts = [{**c, "translation_status": "unavailable"} for c in excerpts]
+        finally:
+            self.runtime_lock.release()
         return {"excerpts": excerpts}
 
 
@@ -282,14 +293,18 @@ def recorded_answer(demo, history, payload, *, progress=None):
               "backend": "supermemory" if hasattr(demo, "store") else "local",
               "model": demo.llm.model_name}
     try:
-        if hasattr(demo, "store"):
-            options = {"progress": progress} if progress is not None else {}
-            body = demo.answer(payload.get("question"), payload.get("source_id"), **options)
-        else:
-            body = demo.answer(payload.get("question"))
+        with answer_deadline():
+            if hasattr(demo, "store"):
+                options = {"progress": progress} if progress is not None else {}
+                body = demo.answer(payload.get("question"), payload.get("source_id"), **options)
+            else:
+                body = demo.answer(payload.get("question"))
+            if not isinstance(body, dict):
+                raise RuntimeError('Invalid answer response.')
+            remaining_timeout(1)  # Do not label an expired attempt as a completed answer.
         status = 200
     except Exception as exc:
-        status = 400 if isinstance(exc, (ValueError, TypeError)) else 500
+        status = 504 if isinstance(exc, AnswerTimeout) else 400 if isinstance(exc, (ValueError, TypeError)) else 500
         body = {"error": safe_error(exc)}
         code = getattr(exc, "status_code", None)
         record["provider_http_status"] = code if isinstance(code, int) else None
@@ -316,6 +331,8 @@ def recorded_answer(demo, history, payload, *, progress=None):
 
 
 def safe_error(exc):
+    if isinstance(exc, AnswerTimeout):
+        return 'The answer took too long to prepare. Please retry your question.'
     status = getattr(exc, "status_code", None)
     if status == 429:
         body = getattr(exc, 'body', None)

@@ -76,13 +76,15 @@ class ImportBudget:
             self._save(config)  # Reserve a submission slot before the remote mutation.
         except BudgetStop:
             raise
-        except (OSError, ValueError, TypeError, KeyError, InvalidOperation, RuntimeError):
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, InvalidOperation, RuntimeError):
             raise BudgetStop('Limited import paused because its budget or billing balance could not be verified.') from None
 
     def stop(self, reason):
         try:
             config = json.loads(self.path.read_text())
         except (OSError, ValueError):
+            config = {}
+        if not isinstance(config, dict):
             config = {}
         config.update(stopped=True, stop_reason=reason)
         self._save(config)

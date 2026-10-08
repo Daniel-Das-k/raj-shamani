@@ -6,7 +6,7 @@ const path = require('node:path');
 
 (async () => {
   const origin = process.env.APP_URL || 'http://127.0.0.1:8000';
-  const output = path.join(__dirname, '../data/reader-check');
+  const output = process.argv[2] ? path.resolve(process.argv[2]) : path.join(__dirname, '../data/reader-check');
   await fs.mkdir(output, {recursive: true});
   const browser = await chromium.launch(process.env.CHROME_PATH
     ? {headless: true, executablePath: process.env.CHROME_PATH}
@@ -134,23 +134,24 @@ const path = require('node:path');
     await page.locator('.answer-prose').waitFor();
     assert.equal(sent[0].source_id, video.id);
     assert.equal(await page.locator('.moment').count(), 1);
-    assert.equal(await page.locator('#watch-panel').isVisible(), true);
-    await page.waitForFunction(() => { const image = document.querySelector('#watch-container img'); return image?.complete && image.naturalWidth > 0; });
-    assert.equal(await page.locator('.citation-link').getAttribute('href'), '#moment-1');
+    assert.equal(await page.locator('#watch-panel').isVisible(), false, 'Show the player only after a clip is selected');
+    assert.equal(await page.locator('.moment details, .moment blockquote').count(), 0, 'Original excerpts are not shown');
+    assert.equal(await page.locator('.moment-actions > *').count(), 2, 'Only Play clip and Full video');
+    assert.equal(await page.locator('.moment-actions a').getAttribute('href'), `https://www.youtube.com/watch?v=${video.id}`);
+    await page.route('https://www.youtube-nocookie.com/**', route => route.fulfill({contentType: 'text/html', body: '<html><body>Offline player fixture</body></html>'}));
+    assert.equal(await page.locator('.citation-link').getAttribute('type'), 'button');
     const savedAnswerURL = page.url();
     await page.locator('.citation-link').click();
     assert.equal(page.url(), savedAnswerURL, 'Citation jump preserves the saved answer URL for refresh');
-    assert.equal(await page.locator('#moment-1').evaluate(el => document.activeElement === el), true);
+    assert.match(await page.locator('#watch-container iframe').getAttribute('src'), /start=100&end=130/);
+    assert.equal(await page.locator('#watch-details a').count(), 0, 'No duplicate YouTube link beside the player');
     await page.evaluate(() => window.scrollTo({top: 0, behavior: 'instant'}));
     await overflow();
     await page.screenshot({path: path.join(output, 'answer-desktop.png'), fullPage: true});
     await page.locator('#theme-toggle').click();
     await page.screenshot({path: path.join(output, 'dark-answer-desktop.png'), fullPage: true});
     await page.locator('#theme-toggle').click();
-    await page.getByText('Read the original excerpt', {exact: true}).click();
-    assert.equal(await page.locator('.moment blockquote').textContent(), citation.quote);
-    await page.route('https://www.youtube-nocookie.com/**', route => route.fulfill({contentType: 'text/html', body: '<html><body>Offline player fixture</body></html>'}));
-    await page.getByRole('button', {name: 'Play from 1:40', exact: true}).click();
+    await page.locator('#moments').getByRole('button', {name: 'Play clip 1: 1:40–2:10', exact: true}).click();
     assert.match(await page.locator('#watch-container iframe').getAttribute('src'), /start=100&end=130/);
     await page.getByRole('button', {name: 'Save this moment', exact: true}).click();
     await page.locator('#collection-name').fill('Focus');
@@ -214,6 +215,7 @@ const path = require('node:path');
       await page.screenshot({path: path.join(output, `question-flow-${width}.png`), fullPage: true});
     }
     await require('./reader_stream_browser.cjs')(page, citation, answer);
+    await require('./reader_state_browser.cjs')(page);
     assert.deepEqual(errors, []);
     console.log('Reader checks passed: catalog, playback, collections, light/dark themes, responsive layouts, citations, repeat questions in place, drafts, visible scope, retry, busy submission guard, Back/Forward, refresh, and saved-answer reopening without generation.');
   } finally { await browser.close(); }

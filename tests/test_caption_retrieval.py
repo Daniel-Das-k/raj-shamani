@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
 
-from knowledge.caption_retrieval import retrieve, context_citation, source_citation, GUIDE_QUERY_PROMPT, GUIDE_RANK_PROMPT
+from knowledge.caption_retrieval import retrieve, context_citation, source_citation, GUIDE_QUERY_PROMPT, GUIDE_RANK_PROMPT, ANSWER_RANK_PROMPT
 from knowledge.supermemory_captions import caption_source
 
 
@@ -49,6 +49,35 @@ class RetrievalTests(unittest.TestCase):
         result = retrieve(self.library, 'Explain memory')
         self.assertTrue(result['excerpts'])
         self.assertEqual(result['excerpts'][0]['title'], self.source['title'])
+
+    def test_client_initialization_failure_preserves_local_search(self):
+        self.library.client_factory = Mock(side_effect=RuntimeError('private client setup failure'))
+        result = retrieve(self.library, 'Explain memory')
+        self.assertTrue(result['excerpts'])
+        self.assertEqual(result['retrieval']['remote_error'], 'RuntimeError')
+        self.assertNotIn('private client setup', json.dumps(result))
+
+    def test_reader_stops_at_empty_relevance_selection(self):
+        self.library.answer_strategy = 'video_guide'
+        self.library.allow_closest = False
+        self.llm.complete.side_effect = [{'queries': ['memory']}, {'selected': []}]
+        result = retrieve(self.library, 'Give me a cake recipe.')
+        self.assertEqual(result['excerpts'], [])
+        self.assertNotIn('closest_fallback', result['retrieval'])
+        self.assertEqual(self.llm.complete.call_args.args[0], ANSWER_RANK_PROMPT)
+
+    def test_reader_retains_useful_partial_evidence(self):
+        self.library.answer_strategy = 'video_guide'
+        self.library.allow_closest = False
+        result = retrieve(self.library, 'Will recall practice guarantee my exam score?')
+        self.assertTrue(result['excerpts'])
+
+    def test_missing_archive_is_not_reported_as_an_irrelevant_question(self):
+        self.library.ready_videos = lambda: [{'id': 'abcdefghijk', 'revision': 'missing'}]
+        with self.assertRaisesRegex(ValueError, 'original captions.*unavailable'):
+            retrieve(self.library, 'Explain memory')
+        self.llm.complete.assert_called_once()
+        self.client.search.assert_not_called()
 
     def test_guide_retrieval_accepts_useful_background_without_a_direct_answer(self):
         self.library.answer_strategy = 'video_guide'

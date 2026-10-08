@@ -3,10 +3,14 @@ const $ = selector => document.querySelector(selector);
 const svgNS = 'http://www.w3.org/2000/svg';
 const topics = ['Mind & body', 'Business & money', 'Work & ambition', 'Life & perspective', 'World & society'];
 const storageKey = 'figuring-out.collections.v1';
+const guestMode = document.documentElement.dataset.accounts === 'guest';
+const accountRequired = guestMode || document.documentElement.dataset.accounts === 'required';
+let account = null, collectionRevision = 0, collectionsReady = !accountRequired;
 let catalog = [], status = null, view = 'discover', topic = '', query = '', visibleCount = 12;
 let collections = [], currentCollection = '', pendingSave = null, busy = false, historyOffset = 0;
-let currentMoments = [], toastTimer, statusTimer, lastFocused = null;
+let toastTimer, statusTimer, lastFocused = null;
 let answerRoute = 'answer', lastQuestion = null, navigationVersion = 0;
+let historyVersion = 0, statusVersion = 0;
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -29,15 +33,21 @@ function iconButton(label, name, callback) {
   const node = button('', 'icon-button', callback, name); node.setAttribute('aria-label', label); return node;
 }
 function external(label, url) {
-  const a = el('a', 'text-link', label); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.append(icon('up')); return a;
+  const a = el('a', 'text-link', label); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+  a.addEventListener('click', stopVideo); a.append(icon('up')); return a;
 }
 function videoID(item) { return item?.source_id || item?.id || ''; }
 function validID(id) { return typeof id === 'string' && /^[A-Za-z0-9_-]{11}$/.test(id); }
-function canonical(item) {
+function fullVideoURL(item) {
   const id = videoID(item);
-  return validID(id) ? `https://www.youtube.com/watch?v=${id}${Number.isFinite(item.start) ? '&t=' + Math.floor(Math.max(0, item.start)) + 's' : ''}` : '';
+  return validID(id) ? `https://www.youtube.com/watch?v=${id}` : '';
 }
 function timeLabel(value) { const s = Math.floor(Math.max(0, Number(value) || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+function clipKey(item) {
+  return validID(videoID(item)) && Number.isFinite(item?.start) && item.start >= 0 && Number.isFinite(item.end) && item.end > item.start
+    ? `${videoID(item)}:${item.start}:${item.end}` : '';
+}
+function clipRange(item) { return `${timeLabel(item.start)}–${timeLabel(Math.ceil(item.end))}`; }
 function findVideo(id) { return catalog.find(v => v.id === id) || readyVideos().find(v => v.id === id); }
 function readyVideos() { return (status?.sources || []).filter(v => v.state === 'ready' || v.status === 'ready'); }
 function canAnswer() { return Boolean(status?.credentials?.answers && readyVideos().length); }
@@ -45,10 +55,23 @@ function toast(message) {
   clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false;
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 4500);
 }
-async function api(path) {
-  const response = await fetch(path); const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'The library could not be reached. Please try again.');
-  return result;
+function accountHeaders(extra = {}) {
+  return {...extra, ...(accountRequired && account ? {'X-Account-ID': account.id, 'X-CSRF-Token': account.csrf} : {})};
+}
+async function api(path, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(path, {...options, headers: accountHeaders(options.headers), signal: controller.signal}); const result = await response.json();
+    if (!response.ok) {
+      const error = new Error(result.error || 'The library could not be reached. Please try again.');
+      error.status = response.status; throw error;
+    }
+    return result;
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('The library took too long to respond. Please try again.');
+    throw error;
+  } finally { clearTimeout(timeout); }
 }
 function imageFor(item, alt = '') {
   const image = el('img'); image.alt = alt; image.loading = 'lazy';
@@ -78,18 +101,33 @@ function loadCollections() {
     const rows = JSON.parse(raw);
     if (!Array.isArray(rows) || rows.length > 100) throw new Error('Invalid collections');
     return rows.filter(c => c && typeof c.id === 'string' && typeof c.name === 'string' && Array.isArray(c.items))
-      .map(c => ({id: c.id.slice(0, 80), name: c.name.slice(0, 60), items: c.items.filter(v => validID(v.id)).slice(0, 200).map(savedItem)}));
+      .map(c => ({id: c.id.slice(0, 80), name: c.name.slice(0, 60), items: c.items.filter(v => v && validID(v.id)).slice(0, 200).map(savedItem)}));
   } catch {
     toast('Your saved collections could not be read. Browser storage may be unavailable.');
     return [{id: 'watch-later', name: 'Watch later', items: []}];
   }
 }
-function persist(next) {
+async function persist(next) {
+  if (accountRequired) {
+    if (!account || !collectionsReady) { toast('Reload your collections before saving changes.'); return false; }
+    try {
+      const result = await api('/api/collections', {method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({revision: collectionRevision, items: next})});
+      collectionRevision = result.revision; collections = result.items; updateSavedCount(); return true;
+    } catch (error) {
+      if (error.status === 409) {
+        collectionsReady = false;
+        try { await refreshCollections(); if (view === 'saved') renderSaved(); } catch {}
+      }
+      toast(error.message); return false;
+    }
+  }
   try { localStorage.setItem(storageKey, JSON.stringify(next)); collections = next; updateSavedCount(); return true; }
   catch { toast('This could not be saved. Check the available browser storage.'); return false; }
 }
 function updateSavedCount() { $('#saved-count').textContent = String(collections.reduce((n, c) => n + c.items.length, 0)); }
 function openSave(item = null) {
+  if (!collectionsReady) { toast('Your collections could not load. Refresh this page before saving.'); return; }
   pendingSave = item ? savedItem(item) : null;
   $('#save-heading').textContent = item ? 'Keep this perspective.' : 'A collection of your own.';
   $('#save-description').textContent = item ? (item.guest || item.title) : 'Give your ideas somewhere to grow.';
@@ -100,7 +138,7 @@ function openSave(item = null) {
   lastFocused = document.activeElement; $('#save-dialog').showModal();
   if (!item) $('#collection-name').focus();
 }
-$('#save-form').addEventListener('submit', event => {
+$('#save-form').addEventListener('submit', async event => {
   event.preventDefault();
   const name = $('#collection-name').value.trim();
   let next = collections.map(c => ({...c, items: [...c.items]}));
@@ -115,14 +153,17 @@ $('#save-form').addEventListener('submit', event => {
     if (collection.items.length >= 200) { $('#save-error').textContent = 'This collection is full. Create another collection to keep more ideas.'; return; }
     collection.items.push(pendingSave);
   }
-  if (!persist(next)) return;
+  $('#confirm-save').disabled = true;
+  let saved;
+  try { saved = await persist(next); } finally { $('#confirm-save').disabled = false; }
+  if (!saved) return;
   currentCollection = collection.id; closeDialog('save-dialog');
   toast(pendingSave ? `Saved to ${collection.name}.` : `${collection.name} is ready.`);
   if (view === 'saved') renderSaved();
 });
-function removeSaved(collectionId, key) {
+async function removeSaved(collectionId, key) {
   const next = collections.map(c => c.id === collectionId ? {...c, items: c.items.filter(i => itemKey(i) !== key)} : c);
-  if (persist(next)) { renderSaved(); toast('Removed from this collection.'); }
+  if (await persist(next)) { renderSaved(); toast('Removed from this collection.'); }
 }
 function closeDialog(id) { $('#' + id).close(); }
 function stopVideo() { $('#video-container').replaceChildren(); $('#watch-container').replaceChildren(); $('#watch-panel').hidden = true; }
@@ -156,34 +197,31 @@ function mediaFrame(item) {
   const params = new URLSearchParams({autoplay: '1', rel: '0'});
   if (Number.isFinite(item.start)) params.set('start', String(Math.floor(Math.max(0, item.start))));
   if (Number.isFinite(item.end) && item.end > (item.start || 0)) params.set('end', String(Math.ceil(item.end)));
-  const frame = el('iframe'); frame.src = `https://www.youtube-nocookie.com/embed/${id}?${params}`;
+  const frame = el('iframe');
+  // YouTube requires the embedding origin even when the page uses no-referrer.
+  frame.referrerPolicy = 'strict-origin-when-cross-origin';
+  frame.src = `https://www.youtube-nocookie.com/embed/${id}?${params}`;
   frame.title = item.title || 'Figuring Out conversation'; frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; frame.allowFullscreen = true;
   return frame;
 }
 function play(item, dock = view === 'answer') {
   const frame = mediaFrame(item); if (!frame) { toast('This video link is unavailable.'); return; }
+  lastFocused = document.activeElement;
   if (dock) {
     $('#video-container').replaceChildren(); $('#watch-container').replaceChildren(frame); $('#watch-panel').hidden = false;
     watchDetails(item);
-    if (innerWidth <= 800) $('#watch-panel').scrollIntoView({behavior: 'smooth', block: 'start'});
+    $('#watch-panel').scrollIntoView({behavior: 'instant', block: 'nearest'});
   } else {
     $('#watch-container').replaceChildren(); $('#watch-panel').hidden = true;
-    $('#video-title').textContent = item.title;
-    $('#video-external').href = canonical(item);
-    $('#video-container').replaceChildren(frame); lastFocused = document.activeElement;
+    $('#video-title').textContent = `${item.title}${clipKey(item) ? ' · Clip ' + clipRange(item) : ''}`;
+    $('#video-external').href = fullVideoURL(item);
+    $('#video-container').replaceChildren(frame);
     $('#video-dialog').showModal();
   }
 }
 function watchDetails(item) {
-  const video = findVideo(videoID(item));
-  $('#watch-details').replaceChildren(el('h3', '', video?.guest || item.title), el('p', '', item.time_range ? `Original conversation · ${item.time_range}` : 'Full conversation · Figuring Out'), external('Open on YouTube', canonical(item)));
-}
-function previewWatch(item) {
-  if ($('#watch-container iframe')) return;
-  const preview = button('', '', () => play(item, true)); preview.setAttribute('aria-label', 'Play supporting conversation');
-  const circle = el('span', 'play-circle'); circle.append(icon('play'));
-  const image = imageFor(item); image.loading = 'eager';
-  preview.append(image, circle); $('#watch-container').replaceChildren(preview); $('#watch-panel').hidden = false; watchDetails(item);
+  $('#watch-details').replaceChildren(el('h3', '', item.title || findVideo(videoID(item))?.title),
+    el('p', '', clipKey(item) ? `Clip ${clipRange(item)} · Stops at ${timeLabel(Math.ceil(item.end))}` : 'Full video'));
 }
 function episodeArt(video) {
   const node = button('', 'episode-art', () => play(video)); node.setAttribute('aria-label', `Watch ${video.guest || video.display_title || video.title}`);
@@ -251,19 +289,27 @@ function renderSaved() {
     const empty = el('div', 'empty-content'); empty.append(el('h3', '', 'A place for your next good idea.'), el('p', '', 'Save conversations and original moments as you explore. They’ll be waiting here when you want to return.'), button('Find a conversation', 'text-link', () => openCatalog(), 'arrow')); $('#saved-grid').append(empty);
   }
 }
-async function loadHistory() {
+async function loadHistory(offset = 0) {
+  const version = ++historyVersion;
+  $('#history-more').disabled = true;
   try {
-    const result = await api('/api/responses?offset=' + historyOffset);
-    if (!historyOffset) $('#response-history').replaceChildren();
+    const result = await api('/api/responses?offset=' + offset);
+    if (version !== historyVersion || view !== 'saved') return;
+    if (!offset) $('#response-history').replaceChildren();
     result.items.forEach(item => {
       const row = el('article', 'history-row');
       const open = button('', '', () => openHistory(item.id));
       open.append(el('h3', '', item.question || 'Question'), el('p', '', `${new Date(item.created_at).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})} · ${item.status === 'error' ? 'Request could not finish' : item.status.replaceAll('_', ' ')}`));
-      const download = el('a', '', 'Download'); download.href = '/api/responses/' + item.id; download.download = `figuring-out-${item.id}.json`; row.append(open, download); $('#response-history').append(row);
+      row.append(open); $('#response-history').append(row);
     });
     if (!result.total) $('#response-history').append(el('p', 'section-note', 'Your questions will appear here after you ask the connected archive.'));
-    $('#history-more').hidden = historyOffset + result.items.length >= result.total;
-  } catch { $('#response-history').replaceChildren(el('p', 'section-note', 'Past questions are unavailable right now. Try again when the local library is connected.')); }
+    historyOffset = offset + result.items.length;
+    $('#history-more').hidden = historyOffset >= result.total;
+  } catch {
+    if (version !== historyVersion || view !== 'saved') return;
+    if (offset) toast('Older questions could not load. Please try again.');
+    else $('#response-history').replaceChildren(el('p', 'section-note', 'Past questions are unavailable right now. Try again when the local library is connected.'));
+  } finally { if (version === historyVersion) $('#history-more').disabled = false; }
 }
 async function openHistory(id, options = {}) {
   if (busy) { toast('Let this question finish before opening another.'); return; }
@@ -281,7 +327,7 @@ function followRoute() {
   const route = location.hash.slice(1);
   if (route.startsWith('moment-')) return;
   if (/^answer\/[a-f0-9]{32}$/.test(route)) {
-    if (route === answerRoute && $('#asked-question').textContent) { navigate('answer', {history: false}); if (currentMoments.length) previewWatch(currentMoments[0].citation || currentMoments[0]); }
+    if (route === answerRoute && $('#asked-question').textContent) navigate('answer', {history: false});
     else if (busy) { toast('Your current question is still being checked.'); navigate('answer', {replace: true}); }
     else openHistory(route.split('/')[1], {history: false});
   } else if (route === 'answer' && $('#asked-question').textContent) navigate('answer', {replace: true});
@@ -296,31 +342,28 @@ function beginAnswer(question, options = {}) {
   navigate('answer', options); $('#asked-question').textContent = question; $('#answer').replaceChildren(); $('#moments').replaceChildren(); $('#moments-section').hidden = true;
   $('#retry-question').hidden = true;
   $('#answer-scope').textContent = lastQuestion?.sourceID ? 'Searched in: ' + (findVideo(lastQuestion.sourceID)?.title || 'Selected conversation') : 'Searched across all conversations';
-  $('#watch-panel').hidden = true; $('#watch-container').replaceChildren(); currentMoments = []; setProgress('');
+  $('#watch-panel').hidden = true; $('#watch-container').replaceChildren(); setProgress('');
 }
 function momentCard(citation, index, guide) {
   const node = el('article', 'moment'); node.id = `moment-${index + 1}`; node.tabIndex = -1;
   const top = el('div', 'moment-topline'), copy = el('div');
-  const video = findVideo(videoID(citation));
-  copy.append(el('h3', '', video?.guest || citation.title), el('p', '', `MOMENT ${String(index + 1).padStart(2, '0')} · ${citation.time_range || timeLabel(citation.start)}`));
+  copy.append(el('h3', '', citation.title || findVideo(videoID(citation))?.title), el('p', '', `Clip ${index + 1} · ${clipRange(citation)}`));
   top.append(imageFor(citation), copy, iconButton('Save this moment', 'save', () => openSave({...citation, kind: 'moment'}))); node.append(top);
-  if (guide?.summary) node.append(el('p', 'moment-copy', guide.summary));
-  if (guide?.why_relevant) node.append(el('p', 'moment-copy', guide.why_relevant));
+  const description = guide?.summary || guide?.why_relevant;
+  if (description) node.append(el('p', 'moment-copy', description));
   if (guide?.limitation) node.append(el('p', 'moment-limit', guide.limitation));
-  const evidence = el('details'); evidence.append(el('summary', '', 'Read the original excerpt'), el('blockquote', '', citation.quote)); node.append(evidence);
   const actions = el('div', 'moment-actions');
-  const playButton = button(`Play from ${timeLabel(citation.start)}`, '', () => play(citation, true), 'play');
-  actions.append(playButton, external('Full conversation', canonical(citation))); node.append(actions); return node;
+  const playButton = button('Play clip', '', () => play(citation, true), 'play');
+  playButton.setAttribute('aria-label', `Play clip ${index + 1}: ${clipRange(citation)}`);
+  actions.append(playButton, external('Full video', fullVideoURL(citation))); node.append(actions); return node;
 }
 function renderMoments(items) {
-  currentMoments = items;
   $('#moments-section').hidden = !items.length;
-  $('#moments-heading').textContent = 'Inside the conversations';
-  $('#moment-count').textContent = `${items.length} moment${items.length === 1 ? '' : 's'}`;
-  $('#moments-note').textContent = 'Hear each idea in the context of the original conversation.';
+  $('#moments-heading').textContent = 'Related clips';
+  $('#moment-count').textContent = `${items.length} clip${items.length === 1 ? '' : 's'}`;
+  $('#moments-note').textContent = 'Play a clip here, or open the full video on YouTube.';
   $('#moments').replaceChildren(...items.map((item, i) => momentCard(item.citation || item, i, item)));
-  if (items.length) previewWatch(items[0].citation || items[0]);
-  else { $('#watch-panel').hidden = true; $('#watch-container').replaceChildren(); }
+  $('#watch-panel').hidden = true; $('#watch-container').replaceChildren();
 }
 function renderAnswer(answer) {
   $('#answer').replaceChildren();
@@ -337,23 +380,22 @@ function renderAnswer(answer) {
   }
   const noEvidence = ['insufficient_evidence', 'invalid_evidence', 'needs_clarification'].includes(answer.status);
   const points = noEvidence ? [] : answer.points || [];
-  const moments = noEvidence ? [] : answer.recommendations ? [...answer.recommendations] : [];
-  if (!noEvidence && !answer.recommendations) {
-    const seen = new Set();
-    points.forEach(p => (p.citations || []).forEach(c => { const key = `${videoID(c)}:${c.start}:${c.end}`; if (!seen.has(key)) { seen.add(key); moments.push({citation: c, summary: c.summary}); } }));
-  }
+  const moments = [], seen = new Set();
+  const addMoment = item => {
+    const citation = item?.citation || item, key = clipKey(citation);
+    if (key && !seen.has(key)) { seen.add(key); moments.push({...item, citation}); }
+  };
+  if (!noEvidence) (answer.recommendations || []).forEach(addMoment);
+  points.forEach(p => (p.citations || []).forEach(c => addMoment({citation: c, summary: c.summary})));
   if (points.length) {
     const prose = el('div', 'answer-prose');
     points.forEach(point => {
       const paragraph = el('p', '', point.text), linked = new Set();
       (point.citations || []).forEach(c => {
-        const number = moments.findIndex(m => videoID(m.citation) === videoID(c) && m.citation.start === c.start && m.citation.end === c.end) + 1;
+        const number = moments.findIndex(m => clipKey(m.citation) === clipKey(c)) + 1;
         if (number < 1 || linked.has(number)) return;
-        const link = el('a', 'citation-link', String(number)); link.href = '#moment-' + number; link.setAttribute('aria-label', `Read supporting moment ${number}`);
-        link.addEventListener('click', event => {
-          event.preventDefault(); const target = $('#moment-' + number);
-          target?.scrollIntoView({block: 'start', behavior: 'instant'}); target?.focus({preventScroll: true});
-        });
+        const link = button(String(number), 'citation-link', () => play(c, true));
+        link.setAttribute('aria-label', `Play clip ${number}: ${clipRange(c)}`);
         paragraph.append(link); linked.add(number);
       });
       prose.append(paragraph);
@@ -388,7 +430,7 @@ async function ask(question, selectedTopic = '', options = {}) {
   $('#answer').setAttribute('aria-busy', 'true');
   try {
     const payload = {question}; if (sourceID) payload.source_id = sourceID;
-    const response = await fetch('/api/ask/stream', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload), signal: controller.signal});
+    const response = await fetch('/api/ask/stream', {method: 'POST', headers: accountHeaders({'Content-Type': 'application/json'}), body: JSON.stringify(payload), signal: controller.signal});
     if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'This question could not be sent.'); }
     if (!response.body) throw new Error('The response stream is unavailable in this browser.');
     reader = response.body.getReader();
@@ -433,7 +475,7 @@ function updateConnection() {
   }
   $('#search-mode').textContent = canAnswer() ? 'Ask the archive' : view === 'answer' ? 'Archive unavailable' : 'Browse episodes';
   $('#ask-button').setAttribute('aria-label', view === 'answer' ? 'Ask another question' : canAnswer() ? 'Ask the archive' : 'Browse matching episodes');
-  $('#availability-note').textContent = canAnswer() ? 'Answers with original excerpts and links to the exact moments.' : 'Explore episodes now. Answers become available when the caption archive is connected.';
+  $('#availability-note').textContent = canAnswer() ? 'Answers with clips from the original conversations.' : 'Explore episodes now. Answers become available when the caption archive is connected.';
   if (view === 'answer') $('#availability-note').textContent = busy ? 'Checking your answer. You can draft your next question while you wait.' : 'Each question searches independently. Include the names or topics you mean.';
   if (view === 'answer' && !busy && !canAnswer()) $('#availability-note').textContent = 'The answer archive is unavailable. Your draft stays here while the library reconnects.';
   $('#retry-question').disabled = busy;
@@ -443,9 +485,26 @@ function updateConnection() {
   if (!status?.credentials?.answers) missing.push('Configure OPENAI_API_KEY on the server for checked answers.');
   if (!status?.credentials?.indexing && status?.backend === 'supermemory') missing.push('Configure SUPERMEMORY_API_KEY for semantic retrieval; local keyword retrieval can still use restored captions.');
   $('#connection-details').textContent = status ? missing.join(' ') || 'The archive is connected and ready for questions.' : 'The local server could not be reached. Check that it is running, then refresh.';
+  if (accountRequired) $('#connection-details').textContent = canAnswer() ? 'The archive is ready for questions.' : 'The archive is temporarily unavailable. Please try again shortly.';
 }
 async function refreshStatus() {
-  try { status = await api('/api/status'); } catch { status = null; }
+  const version = ++statusVersion;
+  try {
+    const next = await api('/api/status');
+    if (next.read_only && next.counts?.ready > next.sources.length) {
+      const sources = [...next.sources], seen = new Set(sources.map(v => v.id));
+      while (sources.length < next.counts.ready) {
+        const page = await api('/api/videos?offset=' + sources.length + '&status=ready');
+        const extra = page.sources.filter(v => !seen.has(v.id));
+        if (!extra.length) break;
+        extra.forEach(v => { seen.add(v.id); sources.push(v); });
+        if (version !== statusVersion) return;
+      }
+      next.sources = sources;
+    }
+    if (version !== statusVersion) return;
+    status = next;
+  } catch { if (version !== statusVersion) return; status = null; }
   updateConnection();
 }
 function bind() {
@@ -462,20 +521,55 @@ function bind() {
   $('#clear-filters').addEventListener('click', () => openCatalog());
   $('#load-more').addEventListener('click', () => { visibleCount += 12; renderCatalog(); });
   $('#new-collection').addEventListener('click', () => openSave());
-  $('#history-more').addEventListener('click', () => { historyOffset += 20; loadHistory(); });
+  $('#history-more').addEventListener('click', () => loadHistory(historyOffset));
   $('#ask-again').addEventListener('click', () => { $('#question').focus({preventScroll: true}); $('#answer-composer').scrollIntoView({block: 'center', behavior: 'instant'}); });
   $('#retry-question').addEventListener('click', () => { if (lastQuestion) ask(lastQuestion.question, '', {sourceID: lastQuestion.sourceID, retry: true}); });
-  $('#return-to-answer').addEventListener('click', () => { navigate('answer'); if (currentMoments.length) previewWatch(currentMoments[0].citation || currentMoments[0]); });
-  $('#close-watch').addEventListener('click', () => { $('#watch-container').replaceChildren(); $('#watch-panel').hidden = true; });
+  $('#return-to-answer').addEventListener('click', () => navigate('answer'));
+  $('#close-watch').addEventListener('click', () => { $('#watch-container').replaceChildren(); $('#watch-panel').hidden = true; lastFocused?.focus({preventScroll: true}); });
   $('#close-video').addEventListener('click', () => closeDialog('video-dialog'));
+  $('#video-external').addEventListener('click', () => { stopVideo(); closeDialog('video-dialog'); });
   $('#video-dialog').addEventListener('close', () => { $('#video-container').replaceChildren(); lastFocused?.focus(); });
   $('#save-dialog').addEventListener('close', () => lastFocused?.focus());
   $('#about-button').addEventListener('click', () => $('#about-dialog').showModal());
   window.addEventListener('hashchange', followRoute);
-  window.addEventListener('storage', event => { if (event.key === storageKey) { collections = loadCollections(); updateSavedCount(); if (view === 'saved') renderSaved(); } });
+  window.addEventListener('storage', event => { if (!accountRequired && event.key === storageKey) { collections = loadCollections(); updateSavedCount(); if (view === 'saved') renderSaved(); } });
+  $('#account-button').addEventListener('click', async () => {
+    if (busy) { toast('Let your current answer finish before signing out.'); return; }
+    try {
+      const result = await api('/auth/logout', {method: 'POST'});
+      // Remove account content before leaving, including when returning via browser history.
+      document.body.replaceChildren(); location.replace(result.redirect);
+    } catch (error) { toast(error.message); }
+  });
+  window.addEventListener('pageshow', event => { if (accountRequired && event.persisted) location.reload(); });
+  window.addEventListener('focus', async () => {
+    if (!accountRequired || !account) return;
+    try { const fresh = await api('/api/account'); if (fresh.id !== account.id || fresh.csrf !== account.csrf) location.reload(); }
+    catch (error) { if (error.status === 401) location.reload(); }
+  });
+}
+async function refreshCollections() {
+  const result = await api('/api/collections');
+  collections = result.items; collectionRevision = result.revision; collectionsReady = true; updateSavedCount();
 }
 async function init() {
-  collections = loadCollections(); updateSavedCount(); bind();
+  bind();
+  if (accountRequired) {
+    try {
+      account = await api('/api/account');
+      $('#account-button').hidden = guestMode; $('#account-button').title = guestMode ? '' : 'Signed in as ' + account.email;
+      $('#collection-storage-note').textContent = guestMode
+        ? 'Saved for this browser for up to 30 days. Clearing cookies ends access.'
+        : 'Your saved conversations and moments, available across your devices.';
+      $('#history-storage-note').textContent = guestMode ? 'Saved for this browser' : 'Visible only to your account';
+      $('#save-dialog .dialog-note').textContent = guestMode ? 'Saved for this browser. No account needed.' : 'Saved to your account.';
+      await refreshCollections();
+    } catch (error) {
+      if (error.status === 401 && !guestMode) { location.replace('/auth/login'); return; }
+      toast(guestMode ? 'Your browser session could not load. Allow cookies and refresh before asking or saving.'
+        : 'Your account could not load. Refresh before asking or saving.'); return;
+    }
+  } else { collections = loadCollections(); updateSavedCount(); }
   try {
     const data = await api('/catalog.json'); catalog = data.episodes.filter(v => validID(v.id));
     renderHome();

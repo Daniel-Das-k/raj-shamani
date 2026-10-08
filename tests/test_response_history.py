@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 from knowledge.response_history import ResponseHistory
 from knowledge.server import recorded_answer
+from knowledge.request_timeout import AnswerTimeout
 
 
 class ResponseHistoryTests(unittest.TestCase):
@@ -48,6 +49,21 @@ class ResponseHistoryTests(unittest.TestCase):
         self.assertIn("usage limit", body["error"])
         self.assertNotIn("private provider", json.dumps(record))
         self.assertNotIn("secret-header", json.dumps(record))
+
+    def test_request_deadline_returns_recorded_retryable_timeout(self):
+        self.demo.answer.side_effect = AnswerTimeout('private timeout detail')
+        body, status = recorded_answer(self.demo, self.history, {'question': 'Explain focus'})
+        self.assertEqual(status, 504)
+        self.assertIn('too long', body['error'])
+        self.assertNotIn('private timeout detail', str(body))
+        self.assertEqual(self.history.get(body['record_id'])['http_status'], 504)
+
+    def test_invalid_answer_shape_is_a_recorded_failure(self):
+        self.demo.answer.return_value = None
+        body, status = recorded_answer(self.demo, self.history, {'question': 'Explain focus'})
+        self.assertEqual(status, 500)
+        self.assertIn('error', body)
+        self.assertEqual(self.history.get(body['record_id'])['http_status'], 500)
 
     def test_configured_credentials_are_redacted_from_stored_content(self):
         with patch.dict(os.environ, {"OPENAI_API_KEY": "credential-not-for-logs"}):

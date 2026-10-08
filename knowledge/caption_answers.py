@@ -273,10 +273,10 @@ class RetryJSON:
     def __init__(self, rate_limit_retries=0):
         self.rate_limit_retries = rate_limit_retries
 
-    def complete(self, system, data):
+    def complete(self, system, data, **kwargs):
         for attempt in range(self.rate_limit_retries + 1):
             try:
-                return super().complete(system, data)
+                return super().complete(system, data, **kwargs)
             except Exception as exc:
                 if getattr(exc, "status_code", None) != 429 or attempt == self.rate_limit_retries:
                     raise

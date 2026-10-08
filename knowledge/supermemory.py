@@ -16,6 +16,7 @@ from urllib.parse import quote
 from .ingest import links_from_file, read_json, write_json
 from .providers import require_key
 from .transcripts import youtube_source
+from .request_timeout import remaining_timeout
 
 ROOT = Path(__file__).resolve().parent.parent
 TRIAL = ROOT / "data" / "supermemory-trial"
@@ -33,11 +34,13 @@ class Supermemory:
     def request(self, method, path, payload=None):
         import requests
         key = require_key("SUPERMEMORY_API_KEY")
+        budget = remaining_timeout(105)
+        connect_timeout = min(15, budget / 4)
         try:
             response = self.session.request(
                 method, "https://api.supermemory.ai" + path,
                 headers={"Authorization": "Bearer " + key}, json=payload,
-                timeout=(15, 90), allow_redirects=False,
+                timeout=(connect_timeout, min(90, budget - connect_timeout)), allow_redirects=False,
             )
         except requests.RequestException as exc:
             # Do not echo request headers or provider credentials into logs.

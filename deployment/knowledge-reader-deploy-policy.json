@@ -1,0 +1,188 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "IdentifyCallerAndValidateTemplate",
+      "Effect": "Allow",
+      "Action": ["sts:GetCallerIdentity", "cloudformation:ValidateTemplate"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DeployNamedStackInMumbai",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateStack", "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents", "cloudformation:DescribeStackResources",
+        "cloudformation:ListStackResources", "cloudformation:GetTemplate",
+        "cloudformation:TagResource", "cloudformation:DeleteStack",
+        "cloudformation:UpdateTerminationProtection", "cloudformation:CreateChangeSet",
+        "cloudformation:DescribeChangeSet", "cloudformation:ExecuteChangeSet",
+        "cloudformation:DeleteChangeSet", "cloudformation:ListChangeSets",
+        "cloudformation:UntagResource"
+      ],
+      "Resource": "arn:aws:cloudformation:ap-south-1:963508377065:stack/knowledge-reader/*"
+    },
+    {
+      "Sid": "LocateCloudFrontPrefixListInMumbai",
+      "Effect": "Allow",
+      "Action": "ec2:DescribeManagedPrefixLists",
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-south-1"}}
+    },
+    {
+      "Sid": "ProvisionRegionalInfrastructureViaCloudFormation",
+      "Effect": "Allow",
+      "Action": ["ec2:*", "cognito-idp:*"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {"aws:RequestedRegion": "ap-south-1"},
+        "ForAnyValue:StringEquals": {"aws:CalledVia": "cloudformation.amazonaws.com"}
+      }
+    },
+    {
+      "Sid": "ProvisionCloudFrontViaCloudFormation",
+      "Effect": "Allow",
+      "Action": "cloudfront:*",
+      "Resource": "*",
+      "Condition": {
+        "ForAnyValue:StringEquals": {"aws:CalledVia": "cloudformation.amazonaws.com"}
+      }
+    },
+    {
+      "Sid": "ManageNamedStorage",
+      "Effect": "Allow",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::knowledge-reader-storage-*",
+        "arn:aws:s3:::knowledge-reader-storage-*/*"
+      ]
+    },
+    {
+      "Sid": "ManageNamedAppSecret",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret", "secretsmanager:DescribeSecret",
+        "secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+        "secretsmanager:UpdateSecret", "secretsmanager:TagResource",
+        "secretsmanager:UntagResource", "secretsmanager:DeleteSecret"
+      ],
+      "Resource": "arn:aws:secretsmanager:ap-south-1:963508377065:secret:knowledge-reader-Settings-*"
+    },
+    {
+      "Sid": "GenerateOriginSecretViaCloudFormation",
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetRandomPassword",
+      "Resource": "*",
+      "Condition": {
+        "ForAnyValue:StringEquals": {"aws:CalledVia": "cloudformation.amazonaws.com"}
+      }
+    },
+    {
+      "Sid": "ManageNamedRoleAndInstanceProfileViaCloudFormation",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole", "iam:GetRole", "iam:DeleteRole",
+        "iam:UpdateAssumeRolePolicy", "iam:UpdateRoleDescription",
+        "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy",
+        "iam:ListRolePolicies", "iam:ListAttachedRolePolicies",
+        "iam:TagRole", "iam:UntagRole", "iam:ListRoleTags",
+        "iam:CreateInstanceProfile", "iam:GetInstanceProfile", "iam:DeleteInstanceProfile",
+        "iam:AddRoleToInstanceProfile", "iam:RemoveRoleFromInstanceProfile",
+        "iam:TagInstanceProfile", "iam:UntagInstanceProfile", "iam:ListInstanceProfileTags"
+      ],
+      "Resource": [
+        "arn:aws:iam::963508377065:role/knowledge-reader-RuntimeRole-*",
+        "arn:aws:iam::963508377065:instance-profile/knowledge-reader-RuntimeProfile-*"
+      ],
+      "Condition": {
+        "ForAnyValue:StringEquals": {"aws:CalledVia": "cloudformation.amazonaws.com"}
+      }
+    },
+    {
+      "Sid": "AttachOnlySSMCoreManagedPolicy",
+      "Effect": "Allow",
+      "Action": ["iam:AttachRolePolicy", "iam:DetachRolePolicy"],
+      "Resource": "arn:aws:iam::963508377065:role/knowledge-reader-RuntimeRole-*",
+      "Condition": {
+        "ArnEquals": {"iam:PolicyARN": "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"},
+        "ForAnyValue:StringEquals": {"aws:CalledVia": "cloudformation.amazonaws.com"}
+      }
+    },
+    {
+      "Sid": "PassReaderRoleOnlyToEC2",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::963508377065:role/knowledge-reader-RuntimeRole-*",
+      "Condition": {"StringEquals": {"iam:PassedToService": "ec2.amazonaws.com"}}
+    },
+    {
+      "Sid": "CreateCloudFrontVpcOriginServiceRole",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": "arn:aws:iam::963508377065:role/aws-service-role/vpcorigin.cloudfront.amazonaws.com/AWSServiceRoleForCloudFrontVPCOrigin",
+      "Condition": {"StringEquals": {"iam:AWSServiceName": "vpcorigin.cloudfront.amazonaws.com"}}
+    },
+    {
+      "Sid": "ManageNamedLogsViaCloudFormation",
+      "Effect": "Allow",
+      "Action": "logs:*",
+      "Resource": "arn:aws:logs:ap-south-1:963508377065:log-group:knowledge-reader-AppLogs-*",
+      "Condition": {
+        "ForAnyValue:StringEquals": {"aws:CalledVia": "cloudformation.amazonaws.com"}
+      }
+    },
+    {
+      "Sid": "LocateLogGroupViaCloudFormation",
+      "Effect": "Allow",
+      "Action": "logs:DescribeLogGroups",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {"aws:RequestedRegion": "ap-south-1"},
+        "ForAnyValue:StringEquals": {"aws:CalledVia": "cloudformation.amazonaws.com"}
+      }
+    },
+    {
+      "Sid": "ManageNamedAlarmsViaCloudFormation",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:PutMetricAlarm", "cloudwatch:DescribeAlarms", "cloudwatch:DeleteAlarms",
+        "cloudwatch:TagResource", "cloudwatch:UntagResource", "cloudwatch:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:cloudwatch:ap-south-1:963508377065:alarm:knowledge-reader-*",
+      "Condition": {
+        "ForAnyValue:StringEquals": {"aws:CalledVia": "cloudformation.amazonaws.com"}
+      }
+    },
+    {
+      "Sid": "ReadAmazonLinuxImageParameter",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter", "ssm:GetParameters"],
+      "Resource": "arn:aws:ssm:ap-south-1::parameter/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+    },
+    {
+      "Sid": "CheckInstallationStatus",
+      "Effect": "Allow",
+      "Action": ["ssm:DescribeInstanceInformation", "ssm:GetCommandInvocation"],
+      "Resource": "*",
+      "Condition": {"StringEquals": {"aws:RequestedRegion": "ap-south-1"}}
+    },
+    {
+      "Sid": "UseShellInstallationDocument",
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": "arn:aws:ssm:ap-south-1::document/AWS-RunShellScript"
+    },
+    {
+      "Sid": "InstallOnlyOnTaggedReaderInstances",
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": "arn:aws:ec2:ap-south-1:963508377065:instance/*",
+      "Condition": {
+        "StringEquals": {
+          "ssm:resourceTag/Project": "KnowledgeReader",
+          "ssm:resourceTag/Stack": "knowledge-reader"
+        }
+      }
+    }
+  ]
+}

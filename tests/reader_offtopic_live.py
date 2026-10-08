@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 
 
 CASES = [
+    {"id": "sambar_recipe", "question": "how to make sambar rice", "expect": "no_answer"},
     {"id": "maggi_typo", "question": "how to cook maggie", "expect": "no_answer"},
     {"id": "maggi_recipe", "question": "How do I cook Maggi noodles? Give exact water quantity and cooking time.", "expect": "no_answer"},
     {"id": "coding", "question": "Write a Python function to merge two sorted lists, with working code.", "expect": "no_answer"},
@@ -53,7 +54,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--url', default='http://127.0.0.1:8000')
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--case-ids', nargs='+')
+    parser.add_argument('--case-ids', nargs='+', choices=[case['id'] for case in CASES])
     args = parser.parse_args()
     with urlopen(args.url + '/api/status', timeout=10) as response:
         status = json.load(response)
@@ -99,7 +100,9 @@ def main():
             print('Stopped after provider/application failure. Resolve it before more paid calls.', flush=True)
             break
     print('Saved: ' + str(args.output), flush=True)
+    return int(any(case['issues'] for case in report['cases']
+                   if not args.case_ids or case['id'] in args.case_ids))
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

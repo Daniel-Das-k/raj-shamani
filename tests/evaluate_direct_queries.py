@@ -113,6 +113,8 @@ def main():
                 fn = baseline.answer_captions if mode == 'baseline' else {'video_guide': recommend_moments,
                      'isolated_statements': answer_from_evidence}.get(args.answer_strategy, answer_captions)
                 kwargs = {'max_repairs': 1} if mode == 'improved' else {}
+                if mode == 'improved' and args.answer_strategy == 'video_guide':
+                    kwargs['allow_closest'] = library.allow_closest
                 if mode == 'improved' and args.answer_strategy == 'isolated_summaries':
                     kwargs['isolate_summaries'] = True
                 if retrieved.get('clarifying_question'):

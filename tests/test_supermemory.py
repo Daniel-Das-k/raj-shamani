@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from knowledge.supermemory import Supermemory, control_trial, start_trial, trial_status
+from knowledge.request_timeout import AnswerTimeout, answer_deadline
 
 
 class SupermemoryTests(unittest.TestCase):
@@ -29,6 +30,22 @@ class SupermemoryTests(unittest.TestCase):
         self.assertEqual(kwargs["json"]["containerTag"], "test-container")
         self.assertEqual(kwargs["json"]["customId"], "stable-id")
         self.assertFalse(kwargs["allow_redirects"])
+        self.assertEqual(kwargs["timeout"], (15, 90))
+
+    @patch.dict("os.environ", {"SUPERMEMORY_API_KEY": "test-secret"})
+    def test_search_uses_remaining_budget_and_stops_after_expiry(self):
+        session = Mock()
+        session.request.return_value.status_code = 200
+        session.request.return_value.json.return_value = {"results": []}
+        with patch('knowledge.request_timeout.time.monotonic', return_value=100) as clock:
+            with answer_deadline(8):
+                client = Supermemory("test-container", session)
+                client.search("test")
+                self.assertEqual(session.request.call_args.kwargs['timeout'], (2, 6))
+                clock.return_value = 108
+                with self.assertRaises(AnswerTimeout):
+                    client.search("test")
+        self.assertEqual(session.request.call_count, 1)
 
     @patch.dict("os.environ", {"SUPERMEMORY_API_KEY": "test-secret"})
     def test_search_only_queries_trial_container(self):

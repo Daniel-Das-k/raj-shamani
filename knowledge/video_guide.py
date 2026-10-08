@@ -1,4 +1,6 @@
 """Connect a user's question to useful, source-checked video moments."""
+import re
+
 from .answer_language import question_language, language_matches
 from .answers import nonempty_text
 from .caption_answers import build_passages
@@ -147,12 +149,29 @@ def closest_moment(question, readings, citations, llm, language, audit):
     return []
 
 
-def guide_message(language, coverage):
+def no_match_message(question):
+    """Explain a completed search with fixed copy, without another model request."""
+    request = ' '.join(question.split()).rstrip('?.!')
+    # Echo only a short, simple how-to request. Complex input gets the general
+    # message, so instructions, markup and long questions do not become reply copy.
+    match = re.fullmatch(r"how (?:to|(?:do|can|should) i) ([a-z]+) ([a-z0-9][a-z0-9 '\u2019-]{0,99})",
+                         request, re.IGNORECASE | re.ASCII)
+    subject = 'an answer to your question'
+    if match:
+        action, topic = match.groups()
+        action = action.lower()
+        gerund = {'make': 'making', 'cook': 'cooking', 'prepare': 'preparing'}.get(action)
+        subject = f'instructions for {gerund} {topic}' if gerund else f'instructions on how to {action} {topic}'
+    return (f'I couldn’t find {subject} in the available video excerpts. '
+            'I can help with questions covered by this archive.')
+
+
+def guide_message(language, coverage, question=''):
     messages = {
             'direct': 'These video moments may help with your question. Each excerpt may cover only part of it.',
             'related': 'I did not find a direct answer in the retrieved excerpts. These related moments may still be useful.',
             'closest': 'I did not find a direct answer in the retrieved excerpts. Here is the closest available content from this search.',
-            'none': 'I could not find a useful match in the retrieved video excerpts.',
+            'none': no_match_message(question),
     }
     return messages[coverage]
 
@@ -172,7 +191,7 @@ def recommend_moments(question, citations, sources, llm, audit=None, *, allow_cl
                     'related' if items else 'none')
         status = 'recommendations' if items else 'invalid_evidence' if invalid else 'insufficient_evidence'
         audit['final_status'] = status
-        message = guide_message(language, coverage)
+        message = guide_message(language, coverage, question)
         if invalid:
             message = 'I could not verify useful descriptions from the retrieved excerpts. Try a narrower search.'
         response = {'status': status, 'coverage': coverage, 'message': message, 'recommendations': items, 'points': []}
@@ -228,23 +247,36 @@ def recommend_moments(question, citations, sources, llm, audit=None, *, allow_cl
             'required': ['summary', 'support_ids'], 'additionalProperties': False}
         record = {'passage_id': passage['id']}
         audit['candidates'].append(record)
-        try:
-            raw = llm.complete(SUMMARY_PROMPT, data, schema=schema)
-            record['raw'] = raw
-            if raw['summary'] == '' and raw['support_ids'] == []:
-                continue
-            summary = nonempty_text(raw['summary'], 'summary', 400)
-            if summary[-1] not in '.!?।…。！？':
-                raise ValueError('Summary must end with a complete sentence.')
-            if not language_matches(summary, language):
-                raise ValueError('Summary is not in the requested language.')
-            supports = raw['support_ids']
-            if not isinstance(supports, list) or not supports or any(s not in ids for s in supports):
-                raise ValueError('Summary needs valid original support IDs.')
-            readings[passage['id']] = (index, summary, data)
-        except (ValueError, KeyError, TypeError, AttributeError) as exc:
-            malformed = True
-            record['validation_error'] = str(exc)
+        summary_data = data
+        record['attempts'] = []
+        for attempt in range(2):
+            detail = {'attempt': attempt + 1}
+            record['attempts'].append(detail)
+            try:
+                raw = llm.complete(SUMMARY_PROMPT, summary_data, schema=schema)
+                record['raw'] = detail['raw'] = raw
+                if raw['summary'] == '' and raw['support_ids'] == []:
+                    break
+                summary = nonempty_text(raw['summary'], 'summary', 400)
+                if summary[-1] not in '.!?।…。！？':
+                    raise ValueError('Summary must end with a complete sentence.')
+                if not language_matches(summary, language):
+                    raise ValueError('Summary is not in the requested language.')
+                supports = raw['support_ids']
+                if not isinstance(supports, list) or not supports or any(s not in ids for s in supports):
+                    raise ValueError('Summary needs valid original support IDs.')
+                readings[passage['id']] = (index, summary, data)
+                break
+            except (ValueError, KeyError, TypeError, AttributeError) as exc:
+                detail['validation_error'] = str(exc)
+                if attempt == 1:
+                    malformed = True
+                    record['validation_error'] = str(exc)
+                else:
+                    summary_data = {**data, 'previous_draft': detail.get('raw'),
+                        'repair': 'Rewrite as one complete sentence under 300 characters, using only the original excerpt. '
+                                  'Do not trim or add punctuation to an unfinished sentence. Previous draft is not evidence.',
+                        'validation_error': str(exc)}
     if not readings:
         return result([], invalid=malformed)
     schema = {'type': 'object', 'properties': {'selected': {'type': 'array', 'maxItems': 6,
