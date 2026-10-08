@@ -13,6 +13,7 @@ import logging
 import os
 from pathlib import Path
 import queue
+import re
 import threading
 import time
 from urllib.parse import urlsplit
@@ -35,11 +36,35 @@ GUEST_COOKIE = '__Host-reader-guest'
 LOGIN_COOKIE = '__Host-reader-login'
 LOG = logging.getLogger('knowledge.public')
 ASSETS = {
-    '/reader.js': 'reader.js', '/reader.css': 'reader.css', '/theme.js': 'theme.js',
+    '/reader.js': 'reader.js', '/reader.css': 'reader.css', '/theme.js': 'theme.js', '/sign-in.js': 'sign-in.js',
     '/catalog.json': 'catalog.json', '/favicon.svg': 'favicon.svg',
     '/geist-latin.woff2': 'geist-latin.woff2', '/media/huberman.png': 'media/huberman.png',
     '/media/raj-shamani.jpg': 'media/raj-shamani.jpg',
 }
+
+
+class SessionChanged(HTTPException):
+    def __init__(self):
+        super().__init__(409, 'Your browser session changed. Reload this page to continue.')
+
+
+def reader_return_path(value):
+    """Only permit known reader routes; never redirect sign-in to another site."""
+    return value if isinstance(value, str) and re.fullmatch(
+        r'/(?:#(?:discover|conversations|saved(?:/history)?|answer(?:/[a-f0-9]{32})?))?', value) else '/'
+
+
+def sign_in_page(*, signed_out=False, error=False):
+    page = (STATIC / 'sign-in.html').read_text(encoding='utf-8')
+    if signed_out:
+        page = page.replace('Sign in to Figuring Out.', 'You’re signed out.')
+    if error:
+        page = page.replace('Sign in to Figuring Out.', 'Sign-in could not finish.')
+        page = page.replace('Your questions, answers, and collections stay in your account.',
+                            'Please start sign-in again.')
+    return page
+
+
 SECURITY_HEADERS = {
     'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'no-referrer', 'Strict-Transport-Security': 'max-age=31536000',
@@ -174,7 +199,7 @@ def create_app(config=None, *, library_factory=None, identity=None):
         if current is None:
             raise HTTPException(401, 'Your browser session expired. Reload this page to continue.' if guest_mode else 'Sign in to use your account.')
         if bind_account and request.headers.get('x-account-id') != current['owner_id']:
-            raise HTTPException(409, 'Your browser session changed. Reload this page to continue.')
+            raise SessionChanged()
         if mutation and (request.headers.get('origin') != base_url or
                          not hmac.compare_digest(request.headers.get('x-csrf-token', ''), current['csrf'])):
             raise HTTPException(403, 'Your session could not be verified. Reload this page and try again.')
@@ -206,10 +231,19 @@ def create_app(config=None, *, library_factory=None, identity=None):
         if guest_mode:
             _, token = guest_session(request)
         elif current_session(request) is None:
-            return RedirectResponse('/auth/login', 303)
+            return RedirectResponse('/sign-in', 303)
         mode = 'guest' if guest_mode else 'required'
         return guest_cookie(HTMLResponse((STATIC / 'index.html').read_text(encoding='utf-8').replace(
             'data-accounts="local"', f'data-accounts="{mode}"')), token)
+
+    def sign_in(request):
+        if guest_mode:
+            return RedirectResponse('/', 303)
+        # A fresh shell also preserves the hash in an opened saved-answer link.
+        # Never include private application content on this public page.
+        if current_session(request):
+            return RedirectResponse(reader_return_path(request.query_params.get('next')), 303)
+        return HTMLResponse(sign_in_page())
 
     def login(request):
         if guest_mode:
@@ -217,7 +251,7 @@ def create_app(config=None, *, library_factory=None, identity=None):
         # CloudFront appends the connecting viewer address; ignore untrusted earlier values.
         address = request.headers.get('x-forwarded-for', request.client.host if request.client else '')
         login_limiter.check(address.split(',')[-1].strip())
-        state, verifier, nonce = accounts.begin_login()
+        state, verifier, nonce = accounts.begin_login(reader_return_path(request.query_params.get('next')))
         response = RedirectResponse(identity.login_url(state, verifier, nonce), 303)
         response.set_cookie(LOGIN_COOKIE, state, max_age=600, secure=True, httponly=True, samesite='lax')
         return response
@@ -239,7 +273,7 @@ def create_app(config=None, *, library_factory=None, identity=None):
         except Exception:
             LOG.warning('Sign-in exchange failed; provider details omitted')
             raise HTTPException(400, 'Sign-in could not be completed. Please start again.') from None
-        response = RedirectResponse('/', 303)
+        response = RedirectResponse(reader_return_path(attempt.get('return_to')), 303)
         response.delete_cookie(LOGIN_COOKIE, secure=True, httponly=True, samesite='lax')
         old_token = request.cookies.get(SESSION_COOKIE)
         if old_token:
@@ -262,10 +296,7 @@ def create_app(config=None, *, library_factory=None, identity=None):
     def signed_out(request):
         if guest_mode:
             return RedirectResponse('/', 303)
-        return HTMLResponse('<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1">'
-            '<title>Signed out — Figuring Out</title><link rel="stylesheet" href="/reader.css"></head>'
-            '<body><main class="page-width page-intro"><h1>You’re signed out.</h1>'
-            '<p>Your saved conversations will be here when you return.</p><a class="outline-button" href="/auth/login">Sign in</a></main></body></html>')
+        return HTMLResponse(sign_in_page(signed_out=True))
 
     def assets(request):
         filename = ASSETS.get(request.url.path)
@@ -401,13 +432,15 @@ def create_app(config=None, *, library_factory=None, identity=None):
         code = exc.status_code if isinstance(exc, HTTPException) else (
             409 if isinstance(exc, CollectionConflict) else 429 if isinstance(exc, UsageLimit) else 400 if isinstance(exc, ValueError) else 500)
         message = exc.detail if isinstance(exc, HTTPException) else str(exc) if code < 500 else 'The request could not finish. Please try again.'
-        if request.url.path.startswith('/auth/'):
+        if request.url.path in ('/auth/login', '/auth/callback'):
             # Fixed copy; provider errors and query parameters are never reflected.
-            return HTMLResponse('<!doctype html><title>Sign-in unavailable</title><p>Sign-in could not be completed.</p>'
-                                '<p><a href="/auth/login">Start sign-in again</a></p>', code)
-        return JSONResponse({'error': message}, code, headers=getattr(exc, 'headers', None))
+            return HTMLResponse(sign_in_page(error=True), code)
+        body = {'error': message}
+        if isinstance(exc, SessionChanged):
+            body['code'] = 'session_changed'
+        return JSONResponse(body, code, headers=getattr(exc, 'headers', None))
 
-    routes = [Route('/', homepage), Route('/auth/login', login), Route('/auth/callback', callback),
+    routes = [Route('/', homepage), Route('/sign-in', sign_in), Route('/auth/login', login), Route('/auth/callback', callback),
               Route('/signed-out', signed_out), Route('/api/account', account),
               Route('/auth/logout', logout, methods=['POST']), Route('/api/status', status), Route('/api/videos', videos),
               Route('/api/responses', responses), Route('/api/responses/{record_id}', responses),

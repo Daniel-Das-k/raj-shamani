@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import json
+import sqlite3
 from pathlib import Path
 import tempfile
 import unittest
@@ -48,6 +49,17 @@ class AccountTests(unittest.TestCase):
         self.assertEqual(self.accounts.collections('alice')['items'], items)
         self.accounts.save_collections('bob', 0, [])
         self.assertEqual(self.accounts.collections('alice')['revision'], 1)
+
+    def test_old_login_table_migrates_without_losing_account_data(self):
+        token = self.accounts.create_session('alice', 'alice@example.test')
+        with sqlite3.connect(self.path) as db:
+            db.execute('DROP TABLE login_attempts')
+            db.execute('CREATE TABLE login_attempts(token_hash TEXT PRIMARY KEY, verifier TEXT NOT NULL, nonce TEXT NOT NULL, expires REAL NOT NULL)')
+        migrated = Accounts(self.path)
+        self.assertEqual(migrated.session(token)['owner_id'], 'alice')
+        state, _, _ = migrated.begin_login('/#saved/history')
+        self.assertEqual(migrated.consume_login(state)['return_to'], '/#saved/history')
+        self.assertIsNone(migrated.consume_login(state))
 
     def test_invalid_collection_timestamps_and_ids_are_rejected(self):
         for item in [None, {'id': '../private'}, {'id': 'Y566_T-YlNQ', 'title': 'a', 'kind': 'moment',

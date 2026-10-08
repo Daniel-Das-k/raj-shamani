@@ -9,6 +9,7 @@
     "test:reader": "node tests/reader_browser.cjs",
     "test:player": "node tests/reader_player_browser.cjs",
     "test:accounts": "node tests/reader_accounts_browser.cjs",
+    "test:auth": "node tests/reader_auth_browser.cjs",
     "test:reader:live": "node tests/reader_live.cjs"
   },
   "devDependencies": {

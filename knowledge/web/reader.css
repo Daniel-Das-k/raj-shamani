@@ -226,6 +226,12 @@ dialog{max-width:calc(100vw - 32px);border-radius:8px;box-shadow:0 2px 8px #0002
 .toast>span{flex:1}
 .toast-action{min-height:44px;white-space:nowrap;text-decoration:underline;font-weight:550;color:inherit}
 .toast .icon-button{color:inherit}
+.auth-header{max-width:1240px;margin:auto;padding:24px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.auth-main{width:calc(100% - 48px);max-width:420px;margin:72px auto}
+.auth-main h1{font-size:32px;line-height:1.2;letter-spacing:-1px;margin:0 0 16px}
+.auth-main p{font-size:16px;line-height:1.7;color:var(--muted);margin:0 0 28px}
+.auth-main .solid-button{width:100%;min-height:48px;text-decoration:none;font-size:15px;justify-content:space-between}
+@media(max-width:600px){.auth-main{margin-top:48px}.auth-main h1{font-size:28px}}
 /* Keep discovery focused on asking, with browsing as a quiet secondary action. */
 .discovery-hero{padding-top:32px;padding-bottom:24px;gap:64px}
 .hero-copy h1{font-size:clamp(32px,3.4vw,48px);line-height:1.15;letter-spacing:-1.7px;margin-bottom:24px;white-space:normal}

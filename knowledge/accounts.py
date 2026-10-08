@@ -40,13 +40,16 @@ class Accounts:
                 CREATE INDEX IF NOT EXISTS session_expiry ON sessions(expires);
                 CREATE TABLE IF NOT EXISTS login_attempts (
                     token_hash TEXT PRIMARY KEY, verifier TEXT NOT NULL, nonce TEXT NOT NULL,
-                    expires REAL NOT NULL);
+                    expires REAL NOT NULL, return_to TEXT NOT NULL DEFAULT '/');
                 CREATE TABLE IF NOT EXISTS collections (
                     owner_id TEXT PRIMARY KEY, revision INTEGER NOT NULL, document TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS usage (
                     owner_id TEXT NOT NULL, period TEXT NOT NULL, count INTEGER NOT NULL,
                     PRIMARY KEY(owner_id,period));
             ''')
+            db.execute('BEGIN IMMEDIATE')
+            if 'return_to' not in {row['name'] for row in db.execute('PRAGMA table_info(login_attempts)')}:
+                db.execute("ALTER TABLE login_attempts ADD COLUMN return_to TEXT NOT NULL DEFAULT '/'")
 
     @contextmanager
     def connect(self):
@@ -58,15 +61,15 @@ class Accounts:
         finally:
             db.close()
 
-    def begin_login(self):
+    def begin_login(self, return_to='/'):
         state, verifier, nonce = (secrets.token_urlsafe(32) for _ in range(3))
         with self.connect() as db:
             db.execute('DELETE FROM login_attempts WHERE expires<=?', (time.time(),))
             # Bound storage even if an unauthenticated caller repeatedly opens login.
             if db.execute('SELECT count(*) FROM login_attempts').fetchone()[0] >= 1000:
                 raise UsageLimit('Sign-in is busy. Please try again shortly.')
-            db.execute('INSERT INTO login_attempts VALUES(?,?,?,?)',
-                       (token_hash(state), verifier, nonce, time.time() + 600))
+            db.execute('INSERT INTO login_attempts(token_hash,verifier,nonce,expires,return_to) VALUES(?,?,?,?,?)',
+                       (token_hash(state), verifier, nonce, time.time() + 600, return_to))
         return state, verifier, nonce
 
     def consume_login(self, state):

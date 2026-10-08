@@ -250,7 +250,7 @@ def main():
     values = provider_configuration(file_values)
     if not all(values.get(k) for k in ['OPENAI_API_KEY', 'SUPERMEMORY_API_KEY']):
         raise SystemExit('Configure both provider keys locally before provisioning.')
-    auth_mode = values.get('PUBLIC_AUTH_MODE', 'guest')
+    auth_mode = values.get('PUBLIC_AUTH_MODE', 'cognito')
     if auth_mode not in {'guest', 'cognito'}:
         raise SystemExit('PUBLIC_AUTH_MODE must be guest or cognito.')
     cloudformation = session.client('cloudformation')

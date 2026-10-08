@@ -16,6 +16,7 @@ let answerRoute = 'answer', lastQuestion = null, navigationVersion = 0;
 let historyVersion = 0, statusVersion = 0;
 let savedTab = 'collections', moveFromCollection = '', editingCollection = null, pendingImport = null;
 let activeRequest = null, playerSession = null, youtubeReady = null;
+let accountRedirecting = false;
 const dialogReturnFocus = new WeakMap();
 
 function el(tag, className, text) {
@@ -73,12 +74,37 @@ function toast(message, actions = []) {
 function accountHeaders(extra = {}) {
   return {...extra, ...(accountRequired && account ? {'X-Account-ID': account.id, 'X-CSRF-Token': account.csrf} : {})};
 }
+function leaveAccount(redirect = '/sign-in?next=' + encodeURIComponent('/' + location.hash)) {
+  if (accountRedirecting) return;
+  accountRedirecting = true;
+  // Hide before navigation so another account never sees a cached private view.
+  document.body.hidden = true;
+  if (activeRequest) { activeRequest.cancelled = true; activeRequest.controller.abort(); }
+  stopVideo(); clearInterval(statusTimer);
+  historyVersion++; collectionLoadVersion++; navigationVersion++;
+  location.replace(redirect);
+}
+function checkSessionResponse(response, result) {
+  if (accountRequired && !guestMode && (response.status === 401 || result.code === 'session_changed')) leaveAccount();
+}
+async function checkCurrentAccount() {
+  if (!accountRequired || !account || accountRedirecting) return;
+  try {
+    const fresh = await api('/api/account');
+    if (fresh.id !== account.id || fresh.csrf !== account.csrf) {
+      if (guestMode) location.reload(); else leaveAccount();
+      return;
+    }
+    syncCollections(true);
+  } catch (error) { if (guestMode && error.status === 401) location.reload(); }
+}
 async function api(path, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
   try {
     const response = await fetch(path, {...options, headers: accountHeaders(options.headers), signal: controller.signal}); const result = await response.json();
     if (!response.ok) {
+      checkSessionResponse(response, result);
       const error = new Error(result.error || 'The library could not be reached. Please try again.');
       error.status = response.status; throw error;
     }
@@ -761,7 +787,7 @@ async function ask(question, selectedTopic = '', options = {}) {
   try {
     const payload = {question}; if (sourceID) payload.source_id = sourceID;
     const response = await fetch('/api/ask/stream', {method: 'POST', headers: accountHeaders({'Content-Type': 'application/json'}), body: JSON.stringify(payload), signal: controller.signal});
-    if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'This question could not be sent.'); }
+    if (!response.ok) { const data = await response.json(); checkSessionResponse(response, data); throw new Error(data.error || 'This question could not be sent.'); }
     if (!response.body) throw new Error('The response stream is unavailable in this browser.');
     reader = response.body.getReader();
     const decoder = new TextDecoder(); let buffer = '', finished = false;
@@ -889,26 +915,22 @@ function bind() {
   $('#save-dialog').addEventListener('close', event => restoreDialogFocus(event.target));
   window.addEventListener('hashchange', followRoute);
   window.addEventListener('storage', event => { if (!accountRequired && (event.key === storageKey || event.key === null)) { collections = loadCollections(); updateCollectionCount(); if (view === 'saved') renderSaved(); if ($('#save-dialog').open) refreshCollectionOptions(); } });
-  collectionChannel?.addEventListener('message', event => { if (event.data?.owner === account?.id) syncCollections(true); });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) syncCollections(true); });
+  collectionChannel?.addEventListener('message', event => {
+    if (!guestMode && account && (event.data?.type === 'signed-out' && event.data.owner === account.id ||
+        event.data?.type === 'account-changed' && event.data.owner !== account.id)) { leaveAccount(); return; }
+    if (event.data?.owner === account?.id) syncCollections(true);
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkCurrentAccount(); });
   $('#account-button').addEventListener('click', async () => {
-    if (busy) { toast('Let your current answer finish before signing out.'); return; }
+    $('#account-button').disabled = true;
     try {
       const result = await api('/auth/logout', {method: 'POST'});
-      // Remove account content before leaving, including when returning via browser history.
-      document.body.replaceChildren(); location.replace(result.redirect);
-    } catch (error) { toast(error.message); }
+      collectionChannel?.postMessage({type: 'signed-out', owner: account.id});
+      leaveAccount(result.redirect);
+    } catch (error) { $('#account-button').disabled = false; toast(error.message); }
   });
-  window.addEventListener('pageshow', event => { if (accountRequired && event.persisted) location.reload(); });
-  window.addEventListener('focus', async () => {
-    if (!accountRequired || !account) return;
-    try {
-      const fresh = await api('/api/account');
-      if (fresh.id !== account.id || fresh.csrf !== account.csrf) { location.reload(); return; }
-      syncCollections(true);
-    }
-    catch (error) { if (error.status === 401) location.reload(); }
-  });
+  window.addEventListener('pageshow', event => { if (accountRequired && event.persisted) { document.body.hidden = true; location.reload(); } });
+  window.addEventListener('focus', checkCurrentAccount);
 }
 async function refreshCollections() {
   if (collectionSaving) return;
@@ -930,6 +952,7 @@ async function init() {
   if (accountRequired) {
     try {
       account = await api('/api/account');
+      if (!guestMode) collectionChannel?.postMessage({type: 'account-changed', owner: account.id});
       $('#account-button').hidden = guestMode; $('#account-button').title = guestMode ? '' : 'Signed in as ' + account.email;
       $('#collection-storage-note').textContent = guestMode
         ? 'Saved for this browser for up to 30 days.'
@@ -938,7 +961,7 @@ async function init() {
       $('#save-dialog .dialog-note').textContent = guestMode ? 'Saved for this browser. No account needed.' : 'Saved to your account.';
       await refreshCollections().catch(() => toast('Your collections could not load. Reload this page before saving.'));
     } catch (error) {
-      if (error.status === 401 && !guestMode) { location.replace('/auth/login'); return; }
+      if (error.status === 401 && !guestMode) { leaveAccount(); return; }
       toast(guestMode ? 'Your browser session could not load. Allow cookies and refresh before asking or saving.'
         : 'Your account could not load. Refresh before asking or saving.'); return;
     }

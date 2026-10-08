@@ -10,7 +10,7 @@ from unittest.mock import Mock
 
 from starlette.testclient import TestClient
 
-from knowledge.public_server import create_app, SESSION_COOKIE, LOGIN_COOKIE
+from knowledge.public_server import create_app, SESSION_COOKIE, LOGIN_COOKIE, GUEST_COOKIE
 from knowledge.response_history import ResponseHistory
 
 BASE = 'https://reader.example.test'
@@ -55,6 +55,47 @@ class PublicServerTests(unittest.TestCase):
         self.assertEqual(self.client.get('/health/live', headers={'Host': 'attacker.test'}).status_code, 403)
         self.answer.assert_not_called()
 
+    def test_signin_page_is_public_and_has_no_private_reader_content(self):
+        home = self.client.get('/')
+        self.assertEqual(home.headers['location'], '/sign-in')
+        page = self.client.get('/sign-in')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn('Sign in to Figuring Out.', page.text)
+        self.assertNotIn('id="response-history"', page.text)
+        self.assertEqual(page.headers['cache-control'], 'no-store')
+        self.assertEqual(self.client.get('/sign-in.js').status_code, 200)
+        result = self.client.post('/auth/logout')
+        self.assertEqual(result.status_code, 401)
+        self.assertIn('error', result.json())
+
+    def test_login_returns_to_saved_route_and_ignores_callback_target(self):
+        route = '/#answer/' + 'a' * 32
+        self.client.get('/auth/login', params={'next': route})
+        state, _, _ = self.identity.login_url.call_args.args
+        result = self.client.get('/auth/callback', params={'state': state, 'code': 'test', 'next': 'https://attacker.test'})
+        self.assertEqual(result.headers['location'], route)
+        self.assertEqual(self.client.get('/sign-in', params={'next': '/#saved/history'}).headers['location'], '/#saved/history')
+
+    def test_login_cannot_redirect_to_external_or_unknown_routes(self):
+        for target in ['https://attacker.test', '//attacker.test', '/\\attacker.test', '/auth/logout', '/#answer/wrong', '/#saved\n', '/%23saved']:
+            with self.subTest(target=target):
+                self.client.get('/auth/login', params={'next': target})
+                state, _, _ = self.identity.login_url.call_args.args
+                result = self.client.get('/auth/callback', params={'state': state, 'code': 'test'})
+                self.assertEqual(result.headers['location'], '/')
+
+    def test_guest_cookies_do_not_grant_access_or_move_data_to_an_account(self):
+        guest = self.app.state.accounts.create_guest_session()
+        owner = self.app.state.accounts.session(guest)['owner_id']
+        self.app.state.history.for_owner(owner).save({'id': 'b'*32, 'created_at': '2026-10-08', 'question': 'Guest private question', 'status': 'answered'})
+        self.client.cookies.set(GUEST_COOKIE, guest)
+        self.client.cookies.set(SESSION_COOKIE, guest)
+        self.assertEqual(self.client.get('/api/account').status_code, 401)
+        self.assertEqual(self.client.get('/api/responses/' + 'b'*32).status_code, 401)
+        self.sign_in('alice')
+        self.assertEqual(self.client.get('/api/responses').json()['total'], 0)
+        self.assertEqual(self.client.get('/api/responses/' + 'b'*32).status_code, 404)
+
     def test_login_checks_state_pkce_cookie_and_replay_then_rotates_session(self):
         response = self.client.get('/auth/login')
         state, verifier, nonce = self.identity.login_url.call_args.args
@@ -76,6 +117,8 @@ class PublicServerTests(unittest.TestCase):
             self.assertIn(response.status_code, [403, 409])
         self.answer.assert_not_called()
         self.assertEqual(self.client.post('/api/ask', json={'question': 'test', 'source_id': []}).status_code, 400)
+        mismatch = self.client.get('/api/collections', headers={'X-Account-ID': 'bob'})
+        self.assertEqual(mismatch.json()['code'], 'session_changed')
 
     def test_history_is_owned_even_when_another_user_knows_the_exact_record_id(self):
         self.sign_in()

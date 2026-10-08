@@ -1,19 +1,26 @@
 # Knowledge Retriever
 
-## AWS deployment without sign-in
+## AWS deployment with private accounts
 
 The production entry point is `knowledge.public_server:create_app`, served by Uvicorn.
 `python -m knowledge serve` remains the loopback-only local demo. AWS deployments default
-to `PUBLIC_AUTH_MODE=guest`: the site opens directly without sign-up or sign-in. Each
-browser receives a random, secure HttpOnly cookie; history and collections are scoped
-to that browser session. The cookie lasts 30 days; clearing cookies or letting it expire
-ends access to those saves. There is no cross-device recovery or synchronization in guest
-mode. Local developer history is excluded from releases, and old unowned or authenticated
-history is never assigned to a guest. Collections use revision checks to prevent one tab
-silently overwriting another. Import and raw-search APIs remain unavailable publicly.
+to `PUBLIC_AUTH_MODE=cognito`: users sign in with a verified email through the existing
+Cognito user pool. `/sign-in` is a public entry page; the reader and private APIs require
+a session. Cognito handles registration, email verification, passwords, and recovery.
+Authorization codes use PKCE, state, and nonce checks. Session cookies are secure and
+HttpOnly; provider tokens and passwords are never stored by the application.
 
-Set `PUBLIC_AUTH_MODE=cognito` in `.env` and redeploy only if separate signed-in accounts
-are wanted. The existing Cognito pool is preserved but unused in guest mode.
+Every question, saved response, and collection belongs to the verified account ID.
+Knowing another account's response URL does not grant access. Sign-in preserves only
+allowlisted reader routes; sign-out and account changes hide private content in open
+tabs. The same account can reopen its saved data across devices. Local developer and
+old guest history are never automatically attached to a signed-in account. Collections
+use revision checks to prevent one tab overwriting another. Import and raw-search APIs
+remain unavailable publicly.
+
+`PUBLIC_AUTH_MODE=guest` remains an explicit optional mode. It isolates data by browser
+session for up to 30 days, without cross-device identity. It does not share guest data
+publicly and does not inherit authenticated or unowned history.
 
 The deployment code provisions a dedicated VPC, one `t3.small` EC2 instance in Mumbai
 by default, a retained encrypted 20 GiB data volume, CloudFront with a private VPC
@@ -131,7 +138,7 @@ for usage accounting. New browser sessions are limited to 10 per IP per minute a
 active sessions in total. Attempts count toward question limits,
 including provider failures. These are request limits, not a guaranteed monetary cap.
 Question limits can be adjusted in the runtime secret followed by a service restart.
-Guest sessions expire after 30 days. In optional Cognito mode, sessions expire after at
+Guest sessions expire after 30 days. In Cognito mode, sessions expire after at
 most one hour; Cognito supplies sign-up, email verification and password recovery. Its
 built-in email sender has service limits; configure an SES sender before expanding
 sign-up volume. This is one instance in one availability zone, so backups
@@ -272,8 +279,11 @@ regressions. Live answer accuracy and latency require the original dataset and k
 `npm run test:accounts` checks the production account UI using simulated identity and
 storage endpoints, including isolation, persistence, conflicts, failed saves, cross-tab
 updates, rename/delete/undo, backup restoration, duplicate imports, and keyboard tabs.
-Use `GUEST_MODE=1` to exercise the deployed guest interface. Install
+Use `GUEST_MODE=1` to exercise the optional guest interface. Install
 `requirements-production.txt` to run all Python tests including the public server.
+`npm run test:auth` runs isolated browser fixtures for sign-in routes, responsive
+layouts, account changes, expired sessions, and cross-tab sign-out during generation.
+It does not create Cognito users or test verification-email delivery.
 
 ### Run the frontend and backend separately
 
@@ -404,7 +414,7 @@ See [channel import details](CHANNEL_IMPORT.md), the earlier
 [question-and-answer review](VIDEO_QA_REVIEW.md), and
 [actual generated replies](VIDEO_QA_ACTUAL_ANSWERS.md).
 The default demo remains local and single-user. The separate AWS production entry
-point described above adds isolated browser sessions and optional account authentication.
+point described above requires isolated signed-in accounts by default, with an optional guest mode.
 
 ## Retrieval and answer reliability
 
