@@ -2,7 +2,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 
 module.exports = async (page, peer, stored, owner) => {
-  await page.locator('#rename-collection').click();
+  const action = async id => {
+    await page.locator('#collection-menu summary').click();
+    await page.locator(id).click();
+  };
+  await page.locator('#collection-menu summary').focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#collection-menu').getAttribute('open'), null);
+  assert.equal(await page.locator('#collection-menu summary').evaluate(el => el === document.activeElement), true);
+  await action('#rename-collection');
   await page.locator('#rename-name').fill('Focus and learning');
   await page.locator('#confirm-collection-edit').click();
   await page.locator('#collection-dialog').waitFor({state: 'hidden'});
@@ -14,10 +23,10 @@ module.exports = async (page, peer, stored, owner) => {
   await page.waitForFunction(() => document.querySelectorAll('#saved-grid .catalog-card').length === 1);
   await page.getByRole('button', {name: 'Undo', exact: true}).click();
   await page.waitForFunction(() => document.querySelectorAll('#saved-grid .catalog-card').length === 2);
-  await page.locator('#delete-collection').click();
+  await action('#delete-collection');
   await page.getByRole('button', {name: 'Cancel', exact: true}).click();
   assert.equal(await page.locator('#collection-count').textContent(), '2');
-  await page.locator('#delete-collection').click();
+  await action('#delete-collection');
   await page.locator('#confirm-collection-edit').click();
   await page.locator('#collection-dialog').waitFor({state: 'hidden'});
   await peer.waitForFunction(() => document.querySelector('#collection-count').textContent === '1');
@@ -27,12 +36,19 @@ module.exports = async (page, peer, stored, owner) => {
   assert.equal(await page.locator('#saved-grid .catalog-card').count(), 2);
 
   const before = structuredClone(stored[owner].items);
+  await page.locator('#backup-menu summary').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#export-collections').click()]);
   const backup = JSON.parse(await fs.readFile(await download.path(), 'utf8'));
   assert.equal(backup.format, 'figuring-out-collections');
   assert.deepEqual(backup.collections, before);
   assert.equal('csrf' in backup, false);
-  const upload = value => page.locator('#import-file').setInputFiles({name: 'collections.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(value))});
+  const upload = async value => {
+    await page.locator('#backup-menu summary').click();
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'), page.locator('#import-collections').click(),
+    ]);
+    await chooser.setFiles({name: 'collections.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(value))});
+  };
   const revision = stored[owner].revision;
   await upload({format: 'figuring-out-collections', version: 1, collections: [{id: 'bad', name: 'Bad', items: [{id: 'bad/video/id', title: 'Invalid', kind: 'episode'}]}]});
   await page.waitForFunction(() => document.querySelector('#toast').textContent.includes('invalid saved item'));
@@ -41,7 +57,7 @@ module.exports = async (page, peer, stored, owner) => {
   await page.locator('#confirm-import').click();
   await page.locator('#import-dialog').waitFor({state: 'hidden'});
   assert.deepEqual(stored[owner].items, before, 'Reimporting a backup does not duplicate existing items');
-  await page.locator('#delete-collection').click();
+  await action('#delete-collection');
   await page.locator('#confirm-collection-edit').click();
   await page.locator('#collection-dialog').waitFor({state: 'hidden'});
   await upload(backup);

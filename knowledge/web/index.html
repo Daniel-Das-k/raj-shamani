@@ -24,11 +24,13 @@
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5h7l2 2h9v13H3z"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
     <symbol id="i-headphones" viewBox="0 0 24 24"><path d="M4 14v-3a8 8 0 0 1 16 0v3M4 12H2v8h4v-8zm16 0h2v8h-4v-8z"/></symbol>
   </defs></svg>
   <header class="site-header">
     <div class="header-inner">
-      <a class="wordmark" href="#discover" aria-label="Figuring Out home"><span>FIGURING<br>OUT<span class="wordmark-dot">.</span></span><small>with Raj Shamani</small></a>
+      <a class="wordmark" href="#discover" aria-label="Figuring Out home"><span>FIGURING<br>OUT<span class="wordmark-dot">.</span></span></a>
       <nav class="main-nav" aria-label="Main navigation">
         <button type="button" data-view="discover" aria-current="page">Discover</button>
         <button type="button" data-view="conversations">Conversations</button>
@@ -36,7 +38,6 @@
       </nav>
       <div class="header-actions">
         <button id="account-button" class="text-link" type="button" hidden>Sign out</button>
-        <a class="channel-link" href="https://www.youtube.com/@rajshamani" target="_blank" rel="noopener noreferrer">The podcast <svg class="icon"><use href="#i-up"/></svg></a>
         <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Dark mode" aria-pressed="false" title="Switch to dark mode">
           <svg class="icon theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 13.1A8.5 8.5 0 0 1 10.9 3.5a8.5 8.5 0 1 0 9.6 9.6Z"/></svg>
           <svg class="icon theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5"/></svg>
@@ -49,24 +50,22 @@
     <section id="discover-view" class="view page-width">
       <div class="discovery-hero">
         <div class="hero-copy">
-          <h1>Search the<br>conversations.</h1>
-          <p class="hero-description">Ask a question to find answers and source clips from Figuring Out episodes.</p>
+          <h1>Ask Figuring Out.</h1>
           <div id="home-composer"><form id="question-form" class="search-composer">
-            <label id="question-label" class="sr-only" for="question">What are you trying to figure out?</label>
-            <div class="search-input-row"><svg class="icon"><use href="#i-search"/></svg><textarea id="question" name="question" rows="1" maxlength="6000" required placeholder="What are you trying to figure out?"></textarea><button id="ask-button" class="search-submit" type="submit" aria-label="Search the archive"><svg class="icon"><use href="#i-arrow"/></svg></button></div>
+            <label id="question-label" class="sr-only" for="question">Ask a question</label>
+            <div class="search-input-row"><svg class="icon"><use href="#i-search"/></svg><textarea id="question" name="question" rows="1" maxlength="6000" required placeholder="Ask a question…"></textarea><button id="ask-button" class="search-submit" type="submit" aria-label="Search the archive"><svg class="icon"><use href="#i-arrow"/></svg></button></div>
           </form>
           <p id="availability-note" class="availability-note" role="status"></p></div>
-          <div class="question-suggestions"><button type="button" data-question="What do the conversations say about handling pressure?" data-topic="Life & perspective">How do I handle pressure? <span>↗</span></button><button type="button" data-question="How can I improve my focus and memory?" data-topic="Mind & body">How can I focus better? <span>↗</span></button><button type="button" data-question="What do the conversations say about building and scaling a business?" data-topic="Business & money">What does it take to build a business? <span>↗</span></button></div>
         </div>
         <article class="featured-conversation">
           <a class="feature-media" href="https://www.youtube.com/@rajshamani" target="_blank" rel="noopener noreferrer" aria-label="Watch Raj Shamani’s Figuring Out podcast on YouTube">
             <img src="/media/raj-shamani.jpg" width="800" height="800" alt="Raj Shamani at the podcast microphone" fetchpriority="high">
-            <span class="feature-caption"><span class="feature-name">Figuring Out</span><strong>Raj Shamani</strong><span class="feature-play">Watch on YouTube <svg class="icon"><use href="#i-up"/></svg></span></span>
+            <span class="feature-caption"><strong>Raj Shamani</strong><span class="feature-play">Watch on YouTube <svg class="icon"><use href="#i-up"/></svg></span></span>
           </a>
         </article>
       </div>
       <section class="topic-section" aria-labelledby="topic-heading"><div class="section-heading"><div><h2 id="topic-heading">Topics</h2></div></div><div id="home-topics" class="topic-list"></div></section>
-      <section class="editorial-section" aria-labelledby="picks-heading"><div class="section-heading"><div><h2 id="picks-heading">Featured conversations</h2></div><button type="button" data-view="conversations" class="text-link">All conversations <svg class="icon"><use href="#i-arrow"/></svg></button></div><div id="editorial-picks" class="editorial-picks"></div></section>
+      <section class="editorial-section" aria-labelledby="picks-heading"><div class="section-heading"><div><h2 id="picks-heading">Conversations</h2></div><button type="button" data-view="conversations" class="text-link">View all <svg class="icon"><use href="#i-arrow"/></svg></button></div><div id="editorial-picks" class="editorial-picks"></div></section>
     </section>
     <section id="conversations-view" class="view page-width" hidden>
       <div class="page-intro"><h1>Conversations</h1><p>Browse episodes by title, guest, or topic.</p></div>
@@ -74,15 +73,20 @@
       <div id="catalog-topics" class="topic-filters" aria-label="Filter by topic"></div><div class="results-meta"><p id="catalog-count" role="status"></p><button type="button" id="clear-filters" class="text-link" hidden>Clear filters</button></div><div id="catalog-grid" class="catalog-grid"></div><button type="button" id="load-more" class="outline-button load-more" hidden>More conversations <svg class="icon"><use href="#i-plus"/></svg></button>
     </section>
     <section id="saved-view" class="view page-width" hidden>
-      <div class="page-intro saved-intro"><div><h1>Collections</h1><p id="collection-storage-note">Saved in this browser. Export a backup to keep a copy.</p></div><button type="button" id="new-collection" class="outline-button"><svg class="icon"><use href="#i-plus"/></svg>New collection</button></div>
-      <div class="library-tabs" role="tablist" aria-label="Saved library"><button type="button" id="collections-tab" role="tab" aria-controls="collections-panel" aria-selected="true" data-library-tab="collections">Collections</button><button type="button" id="history-tab" role="tab" aria-controls="history-panel" aria-selected="false" tabindex="-1" data-library-tab="history">Past questions</button></div>
-      <div id="collections-panel" role="tabpanel" aria-labelledby="collections-tab">
-        <div class="backup-actions"><button id="export-collections" type="button" class="text-link">Export collections</button><button id="import-collections" type="button" class="text-link">Import collections</button><input id="import-file" type="file" accept=".json,application/json" hidden></div>
-        <div id="collection-tabs" class="collection-list" aria-label="Choose a collection"></div>
-        <div id="collection-toolbar" class="collection-toolbar"><h2 id="active-collection-name"></h2><div><button id="rename-collection" type="button" class="text-link">Rename</button><button id="delete-collection" type="button" class="text-link">Delete collection</button></div></div>
-        <div id="saved-grid" class="catalog-grid"></div>
+      <div class="page-intro saved-intro"><div><h1>Collections</h1><p id="collection-storage-note">Saved in this browser.</p></div><button type="button" id="new-collection" class="outline-button"><svg class="icon"><use href="#i-plus"/></svg>New collection</button></div>
+      <div class="library-bar">
+        <div class="library-tabs" role="tablist" aria-label="Saved library"><button type="button" id="collections-tab" role="tab" aria-controls="collections-panel" aria-selected="true" data-library-tab="collections">Collections</button><button type="button" id="history-tab" role="tab" aria-controls="history-panel" aria-selected="false" tabindex="-1" data-library-tab="history">Past questions</button></div>
+        <details id="backup-menu" class="action-menu"><summary>Backups <svg class="icon"><use href="#i-chevron"/></svg></summary><div class="action-menu-panel"><button id="export-collections" type="button">Export collections</button><button id="import-collections" type="button">Import collections</button></div></details>
       </div>
-      <section id="history-panel" class="history-section" role="tabpanel" aria-labelledby="history-tab" hidden><div class="section-heading"><h2>Past questions</h2><span id="history-storage-note">Saved in this browser</span></div><div id="response-history"></div><button id="history-more" type="button" class="text-link" hidden>Older questions <svg class="icon"><use href="#i-arrow"/></svg></button></section>
+      <input id="import-file" type="file" accept=".json,application/json" hidden>
+      <div id="collections-panel" class="collection-workspace" role="tabpanel" aria-labelledby="collections-tab">
+        <div id="collection-tabs" class="collection-list" aria-label="Choose a collection"></div>
+        <div class="collection-content">
+          <div id="collection-toolbar" class="collection-toolbar"><h2 id="active-collection-name"></h2><details id="collection-menu" class="action-menu"><summary class="icon-button" aria-label="Collection options"><svg class="icon"><use href="#i-more"/></svg></summary><div class="action-menu-panel"><button id="rename-collection" type="button">Rename</button><button id="delete-collection" type="button">Delete collection</button></div></details></div>
+          <div id="saved-grid" class="catalog-grid"></div>
+        </div>
+      </div>
+      <section id="history-panel" class="history-section" role="tabpanel" aria-labelledby="history-tab" hidden><p id="history-storage-note" class="sr-only">Saved in this browser</p><div id="response-history" aria-live="polite"></div><button id="history-more" type="button" class="text-link" hidden>Older questions <svg class="icon"><use href="#i-arrow"/></svg></button></section>
     </section>
     <section id="answer-view" class="view page-width" hidden>
       <button type="button" data-view="discover" class="back-link">← Back to discovery</button>

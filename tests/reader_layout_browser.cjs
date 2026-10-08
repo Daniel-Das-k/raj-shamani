@@ -35,14 +35,14 @@ module.exports = async (page, output, citation) => {
             }
             return [255, 255, 255];
           };
-          const selectors = '.main-nav button, .back-link, .hero-description, .availability-note, .episode-meta, .episode-guest, .moment-copy, .moment-limit, .clip-source, .clip-time, .clip-play, .answer-lead, .answer-limitation, .library-tabs button, .folder-copy strong, .folder-copy>span, .backup-actions button, .remove-save';
+          const selectors = '.main-nav button, .back-link, .availability-note, .episode-meta, .episode-guest, .moment-copy, .moment-limit, .clip-source, .clip-time, .clip-play, .answer-lead, .answer-limitation, .library-tabs button, .folder-copy strong, .folder-copy>span, .action-menu summary, .action-menu button, .remove-save';
           for (const node of document.querySelectorAll(selectors)) {
             if (!node.getClientRects().length) continue;
             const style = getComputedStyle(node), fg = luminance(rgb(style.color)), bg = luminance(background(node));
             const contrast = (Math.max(fg, bg) + .05) / (Math.min(fg, bg) + .05);
             if (contrast < 4.5) problems.push(`${node.className || node.id || node.textContent.trim()}: text contrast ${contrast.toFixed(2)}`);
           }
-          for (const node of document.querySelectorAll('.icon-button, .search-submit, .theme-toggle, .clip-play, .library-tabs button, .collection-folder, .question-suggestions button')) {
+          for (const node of document.querySelectorAll('.icon-button, .search-submit, .theme-toggle, .clip-play, .library-tabs button, .collection-folder, .action-menu summary, .topic-button')) {
             if (!node.getClientRects().length) continue;
             const bounds = node.getBoundingClientRect();
             if (bounds.width < 44 || bounds.height < 44) problems.push(`${node.className || node.id}: touch control ${bounds.width}×${bounds.height}`);

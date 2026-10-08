@@ -372,8 +372,15 @@ function restoreDialogFocus(dialog) {
   }
 }
 function closeDialog(id) { const dialog = $('#' + id); dialog.close(); restoreDialogFocus(dialog); }
+function closeActionMenu(menu, restoreFocus = false) {
+  if (!menu?.open) return;
+  const focused = menu.contains(document.activeElement);
+  menu.open = false;
+  if (restoreFocus && focused) menu.querySelector('summary').focus({preventScroll: true});
+}
 
 function navigate(next, options = {}) {
+  document.querySelectorAll('.action-menu[open]').forEach(menu => closeActionMenu(menu));
   if (!['discover', 'conversations', 'saved', 'answer'].includes(next)) next = 'discover';
   if (view !== next) { stopVideo(); if ($('#video-dialog').open) $('#video-dialog').close(); }
   view = next; navigationVersion++;
@@ -387,8 +394,8 @@ function navigate(next, options = {}) {
   if (options.history !== false && location.hash !== '#' + route) history[options.replace ? 'replaceState' : 'pushState'](null, '', '#' + route);
   const destination = view === 'answer' ? $('#answer-composer-body') : $('#home-composer');
   destination.append($('#question-form'), $('#availability-note'));
-  $('#question').placeholder = view === 'answer' ? 'What else are you trying to figure out?' : 'What are you trying to figure out?';
-  $('#question-label').textContent = view === 'answer' ? 'Ask another question' : 'What are you trying to figure out?';
+  $('#question').placeholder = view === 'answer' ? 'What else are you trying to figure out?' : 'Ask a question…';
+  $('#question-label').textContent = view === 'answer' ? 'Ask another question' : 'Ask a question';
   if (view === 'conversations') renderCatalog();
   if (view === 'saved') { renderSaved(); syncCollections(); setLibraryTab(savedTab, false); }
   updateResume();
@@ -510,10 +517,7 @@ function episodeRow(video) {
   row.append(episodeArt(video), copy, saveButton(video, `Save ${video.guest || video.title}`)); return row;
 }
 function renderHome() {
-  $('#home-topics').replaceChildren(...topics.map((name, i) => {
-    const node = button('', 'topic-button', () => openCatalog('', name));
-    node.append(el('span', 'topic-number', String(i + 1).padStart(2, '0')), el('strong', '', name), icon('up')); return node;
-  }));
+  $('#home-topics').replaceChildren(...topics.map(name => button(name, 'topic-button', () => openCatalog('', name))));
   const lead = findVideo('46P1rL0rzPE'); const list = el('div', 'editorial-list');
   ['PXMyK7JxGOk', 'sGpc8-f2e8U', '4Vz6L8B73i4'].map(findVideo).filter(Boolean).forEach(v => list.append(episodeRow(v)));
   $('#editorial-picks').replaceChildren(...(lead ? [episodeCard(lead, 'editorial-lead'), list] : [list]));
@@ -550,16 +554,22 @@ function setLibraryTab(tab, updateRoute = true) {
   });
   $('#collections-panel').hidden = savedTab !== 'collections'; $('#history-panel').hidden = savedTab !== 'history';
   $('#new-collection').hidden = savedTab !== 'collections';
+  $('#backup-menu').hidden = savedTab !== 'collections';
+  document.querySelectorAll('.action-menu[open]').forEach(menu => closeActionMenu(menu));
   if (updateRoute && view === 'saved') history.replaceState(null, '', '#saved' + (savedTab === 'history' ? '/history' : ''));
   if (savedTab === 'history') { historyOffset = 0; loadHistory(); }
   else historyVersion++;
 }
 function renderSaved() {
+  closeActionMenu($('#collection-menu'));
   if (!currentCollection) { try { currentCollection = sessionStorage.getItem('figuring-out.selected-collection.' + (account?.id || 'local')) || ''; } catch {} }
   if (!collections.some(c => c.id === currentCollection)) currentCollection = collections[0]?.id || '';
   rememberCollection();
   $('#collection-tabs').replaceChildren(...collections.map(c => {
-    const node = button('', 'collection-folder', () => { currentCollection = c.id; rememberCollection(); renderSaved(); });
+    const node = button('', 'collection-folder', () => {
+      currentCollection = c.id; rememberCollection(); renderSaved();
+      $('#collection-tabs [aria-pressed=true]')?.focus({preventScroll: true});
+    });
     const copy = el('span', 'folder-copy'); copy.append(el('strong', '', c.name), el('span', '', collectionItemCount(c)));
     node.append(icon('folder'), copy); node.setAttribute('aria-pressed', String(c.id === currentCollection)); return node;
   }));
@@ -569,7 +579,7 @@ function renderSaved() {
   if (!collection?.items.length) {
     const empty = el('div', 'empty-content');
     empty.append(el('h3', '', !collectionsReady ? 'Collections unavailable' : collection ? 'No saved items yet' : 'Create your first collection'),
-      el('p', '', !collectionsReady ? 'Reload this page to try again.' : collection ? 'Bookmark a conversation or clip, then choose this collection.' : 'Create a collection or bookmark a clip to start saving.'),
+      el('p', '', !collectionsReady ? 'Reload this page to try again.' : collection?.id === 'watch-later' ? 'Bookmarked clips and episodes appear here.' : collection ? 'Move saved clips or episodes into this collection.' : 'Create a collection to organize clips and episodes.'),
       button('Browse conversations', 'text-link', () => openCatalog(), 'arrow'));
     $('#saved-grid').append(empty);
   }
@@ -588,7 +598,13 @@ async function loadHistory(offset = 0) {
       open.append(el('h3', '', item.question || 'Question'), el('p', '', `${new Date(item.created_at).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})} · ${item.status === 'error' ? 'Request could not finish' : item.status.replaceAll('_', ' ')}`));
       row.append(open); $('#response-history').append(row);
     });
-    if (!result.total) $('#response-history').append(el('p', 'section-note', 'Your questions and answers will appear here after your first search.'));
+    if (!result.total) {
+      const empty = el('div', 'empty-content');
+      empty.append(el('h3', '', 'No past questions yet'), button(busy ? 'Return to your question' : 'Ask a question', 'text-link', () => {
+        navigate(busy ? 'answer' : 'discover'); if (!busy) $('#question').focus();
+      }, 'arrow'));
+      $('#response-history').append(empty);
+    }
     historyOffset = offset + result.items.length;
     $('#history-more').hidden = historyOffset >= result.total;
   } catch {
@@ -789,7 +805,7 @@ function updateConnection() {
   $('#question-form').hidden = busy;
   $('#availability-note').hidden = busy;
   $('#ask-button').setAttribute('aria-label', view === 'answer' ? 'Ask another question' : canAnswer() ? 'Ask the archive' : 'Browse matching episodes');
-  $('#availability-note').textContent = canAnswer() ? 'Answers with clips from the original conversations.' : 'Explore episodes now. Answers become available when the caption archive is connected.';
+  $('#availability-note').textContent = canAnswer() ? 'Answers with source clips.' : 'Browse episodes. Answer search is currently unavailable.';
   if (view === 'answer') $('#availability-note').textContent = 'Each question searches independently. Include the names or topics you mean.';
   if (view === 'answer' && !busy && !canAnswer()) $('#availability-note').textContent = 'The answer archive is unavailable. Your draft stays here while the library reconnects.';
   $('#retry-question').disabled = busy;
@@ -816,7 +832,6 @@ async function refreshStatus() {
 }
 function bind() {
   document.querySelectorAll('[data-view]').forEach(node => node.addEventListener('click', () => navigate(node.dataset.view)));
-  document.querySelectorAll('[data-question]').forEach(node => node.addEventListener('click', () => { $('#question').value = node.dataset.question; ask(node.dataset.question, node.dataset.topic); }));
   document.querySelectorAll('[data-close]').forEach(node => node.addEventListener('click', () => closeDialog(node.dataset.close)));
   $('#question-form').addEventListener('submit', event => { event.preventDefault(); ask($('#question').value); });
   $('#question').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('#question-form').requestSubmit(); } });
@@ -834,6 +849,15 @@ function bind() {
       const next = event.key === 'Home' ? 'collections' : event.key === 'End' ? 'history' : savedTab === 'history' ? 'collections' : 'history';
       setLibraryTab(next); $('#' + (next === 'history' ? 'history' : 'collections') + '-tab').focus();
     });
+  });
+  document.querySelectorAll('.action-menu button').forEach(node => node.addEventListener('click', () => closeActionMenu(node.closest('.action-menu'), true)));
+  document.addEventListener('click', event => document.querySelectorAll('.action-menu[open]').forEach(menu => {
+    if (!menu.contains(event.target)) closeActionMenu(menu);
+  }));
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    const menus = [...document.querySelectorAll('.action-menu[open]')];
+    if (menus.length) { event.preventDefault(); menus.forEach(menu => closeActionMenu(menu, true)); }
   });
   $('#rename-collection').addEventListener('click', () => openCollectionEdit('rename'));
   $('#delete-collection').addEventListener('click', () => openCollectionEdit('delete'));
@@ -902,7 +926,7 @@ async function init() {
       account = await api('/api/account');
       $('#account-button').hidden = guestMode; $('#account-button').title = guestMode ? '' : 'Signed in as ' + account.email;
       $('#collection-storage-note').textContent = guestMode
-        ? 'Saved for this browser for up to 30 days. Export a backup to keep a copy.'
+        ? 'Saved for this browser for up to 30 days.'
         : 'Your saved conversations and moments, available across your devices.';
       $('#history-storage-note').textContent = guestMode ? 'Saved for this browser' : 'Visible only to your account';
       $('#save-dialog .dialog-note').textContent = guestMode ? 'Saved for this browser. No account needed.' : 'Saved to your account.';

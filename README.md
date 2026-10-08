@@ -162,7 +162,10 @@ resources continue to incur charges until explicitly cleaned up.
 
 The browser now opens an editorial discovery experience with real episodes from
 the committed `INDEXED_VIDEOS.md` snapshot. It includes topic and title search,
-episode playback, and named collections stored in this browser's local storage.
+episode playback, and named collections. The local demo uses browser local storage;
+the deployed site saves collections through `/api/collections` into server-side SQLite,
+scoped to the current guest session or signed-in account. Past questions come from
+`/api/responses` and reopen their saved answer without another generation request.
 In the deployed guest/account modes, collection changes refresh on reopening the
 view, returning to the tab, and periodically while visible. Open tabs in the same
 session receive change notifications. Bookmark state and counts update after a
@@ -171,7 +174,10 @@ count is the number of collection folders, including empty folders. A bookmark s
 immediately to Watch later; its notification offers **Change collection**. Existing
 bookmarks open the move dialog. Collection folders show clip/episode counts and support
 rename, delete, and undo. Removing an item also offers undo. Collections and Past
-questions have separate tabs. JSON export/import backs up folders, clips, descriptions,
+questions have separate tabs. On desktop, the compact folder list sits beside its
+contents; on mobile it sits above them. Rename/delete are in **Collection options**,
+and **Backups** contains export/import. These menus support keyboard focus and Escape.
+JSON export/import backs up folders, clips, descriptions,
 and exact timestamps; imports are validated, merged, and deduplicated. Guest sessions
 last up to 30 days, so use export to retain a copy or move saves to another browser.
 The snapshot is a browsing catalog; it does not mark any video as searchable.
@@ -186,8 +192,10 @@ next-question form and "Ask another" action are hidden. A plain progress list fo
 the actual server phases and shows elapsed time without an estimated completion time.
 The form returns on success, failure, or cancellation. Cancel stops waiting and restores
 the question for editing; it does not guarantee that a running provider call stops or
-avoids its charge. A completed answer can still appear in Past questions. The homepage omits promotional callouts and
-uses direct labels for browsing, saving, and asking questions. It also ignores interim
+avoids its charge. A completed answer can still appear in Past questions. The homepage
+keeps one question heading and a short source-clip note, with the portrait and topic
+links alongside the search. Repeated explanations, suggested-question buttons, and
+duplicate podcast links are omitted. It also ignores interim
 excerpts from older servers. The final response uses the existing verification
 pipeline and is saved to response history. The JSON `/api/ask` endpoint remains
 available. A remote Supermemory search failure falls back to local keyword retrieval
