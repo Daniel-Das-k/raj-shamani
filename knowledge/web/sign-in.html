@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-provider="google">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -19,10 +19,19 @@
       <svg class="icon theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5"/></svg>
     </button>
   </header>
-  <main class="auth-main">
-    <h1>Sign in to Figuring Out.</h1>
-    <p>Your questions, answers, and collections stay in your account.</p>
-    <a id="sign-in-link" class="solid-button" href="/auth/login">Sign in or create an account <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
+  <main class="auth-layout">
+    <figure class="auth-photo">
+      <img src="/media/raj-shamani.jpg" alt="Raj Shamani at the Figuring Out microphone" width="800" height="800">
+      <figcaption>Raj Shamani · Figuring Out</figcaption>
+    </figure>
+    <section class="auth-main" aria-labelledby="auth-title">
+      <h1 id="auth-title">Sign in.</h1>
+      <p id="auth-description">Access your saved questions and collections.</p>
+      <p id="auth-error" class="auth-error" role="alert" hidden></p>
+      <a id="sign-in-link" class="google-button" href="/auth/login"><img class="google-logo" src="/media/google-g.png" width="20" height="20" alt=""><span>Continue with Google</span></a>
+      <p id="auth-progress" class="sr-only" role="status"></p>
+      <p class="auth-switch"><span id="auth-switch-label">New here?</span> <a id="auth-switch-link" href="/sign-up">Create an account</a></p>
+    </section>
   </main>
 </body>
 </html>

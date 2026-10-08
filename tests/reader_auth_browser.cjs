@@ -4,26 +4,28 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const http = require('node:http');
+const {execFileSync} = require('node:child_process');
 
 (async () => {
   const assets = path.join(__dirname, '../knowledge/web');
   const output = process.argv[2] || '/tmp/reader-auth-check';
   await fs.mkdir(output, {recursive: true});
   const html = (await fs.readFile(path.join(assets, 'index.html'), 'utf8')).replace('data-accounts="local"', 'data-accounts="required"');
-  const signin = await fs.readFile(path.join(assets, 'sign-in.html'), 'utf8');
+  const pages = JSON.parse(execFileSync(path.join(__dirname, '../.venv/bin/python'), ['-c',
+    "import json; from knowledge.public_server import sign_in_page; print(json.dumps({'signin': sign_in_page(), 'signup': sign_in_page(signup=True), 'cancelled': sign_in_page(error='cancelled'), 'signedout': sign_in_page(signed_out=True)}))"], {cwd: path.join(__dirname, '..'), encoding: 'utf8'}));
   let owner = null, expired = false;
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, 'http://localhost');
     const redirect = location => { response.writeHead(303, {location}); response.end(); };
     let body;
-    if (url.pathname === '/sign-in') {
+    if (['/sign-in', '/sign-up'].includes(url.pathname)) {
       if (owner) return redirect(url.searchParams.get('next') || '/');
-      body = signin;
+      body = url.pathname === '/sign-up' ? pages.signup : url.searchParams.get('error') === 'cancelled' ? pages.cancelled : pages.signin;
     } else if (url.pathname === '/') {
       if (!owner) return redirect('/sign-in');
       body = html;
     } else if (url.pathname === '/signed-out') {
-      body = signin.replace('Sign in to Figuring Out.', 'You’re signed out.');
+      body = pages.signedout;
     } else { response.writeHead(404); response.end(); return; }
     response.writeHead(200, {'content-type': 'text/html', 'cache-control': 'no-store'});
     response.end(body);
@@ -36,12 +38,12 @@ const http = require('node:http');
     context.setDefaultTimeout(10000);
     const errors = [], logoutOwners = [];
     context.on('page', page => page.on('pageerror', error => errors.push(error.message)));
-    const types = {'.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.woff2': 'font/woff2', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml'};
-    const allowed = new Set(['reader.js', 'reader.css', 'theme.js', 'sign-in.js', 'catalog.json', 'geist-latin.woff2', 'media/raj-shamani.jpg', 'favicon.svg']);
+    const types = {'.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.png': 'image/png'};
+    const allowed = new Set(['reader.js', 'reader.css', 'theme.js', 'sign-in.js', 'catalog.json', 'geist-latin.woff2', 'google-sans.ttf', 'media/raj-shamani.jpg', 'media/google-g.png', 'favicon.svg']);
     await context.route('**/*', async route => {
       const url = new URL(route.request().url());
       if (url.origin !== origin) return route.abort();
-      if (['/', '/sign-in', '/signed-out'].includes(url.pathname)) return route.continue();
+      if (['/', '/sign-in', '/sign-up', '/signed-out'].includes(url.pathname)) return route.continue();
       if (url.pathname.startsWith('/api/') || url.pathname === '/auth/logout') {
         if (!owner || expired) return route.fulfill({status: 401, json: {error: 'Sign in to use your account.'}});
         if (url.pathname === '/api/account') return route.fulfill({json: {id: owner, csrf: owner + '-csrf', email: owner + '@example.test'}});
@@ -69,13 +71,26 @@ const http = require('node:http');
       await page.goto(origin + '/sign-in?next=' + encodeURIComponent(target));
       assert.equal(new URL(await page.locator('#sign-in-link').getAttribute('href'), origin).searchParams.get('next'), target === '/#saved/history' ? target : '/');
     }
+    await page.goto(origin + '/sign-in?next=' + encodeURIComponent(destination));
+    await page.locator('#auth-switch-link').click();
+    await page.getByRole('heading', {name: 'Create an account.'}).waitFor();
+    assert.equal(new URL(page.url()).searchParams.get('next'), destination);
+    assert.equal(new URL(await page.locator('#sign-in-link').getAttribute('href'), origin).searchParams.get('next'), destination);
+    await page.locator('#auth-switch-link').click();
+    await page.getByRole('heading', {name: 'Sign in.'}).waitFor();
+    await page.goto(origin + '/sign-in?error=cancelled&next=' + encodeURIComponent(destination));
+    assert.match(await page.locator('[role=alert]').innerText(), /cancelled/);
+    assert.equal(await page.locator('#sign-in-link').getAttribute('aria-disabled'), null);
+    await page.goto(origin + '/sign-in?next=' + encodeURIComponent(destination));
     for (const theme of ['light', 'dark']) {
       await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
       for (const width of [1440, 768, 390, 320]) {
         await page.setViewportSize({width, height: 900});
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
         assert.equal(await page.locator('#question, #response-history, #collection-tabs').count(), 0, 'Public sign-in page contains no private application views');
-        if ([1440, 390].includes(width)) await page.screenshot({path: path.join(output, `signin-${theme}-${width}.png`)});
+        assert.equal(await page.locator('header').count(), 1);
+        assert.ok(await page.locator('#sign-in-link').evaluate(node => node.getBoundingClientRect().height >= 44));
+        if ([1440, 390].includes(width)) await page.screenshot({path: path.join(output, `signin-${theme}-${width}.png`), fullPage: true});
       }
     }
     console.log('Sign-in routes and responsive layouts passed.');
@@ -92,7 +107,7 @@ const http = require('node:http');
     await privateView(page);
     const peer = await context.newPage();
     await peer.goto(origin); await privateView(peer);
-    // Signing into Bob in another tab must hide Alice's old DOM before navigation finishes.
+    // Signing into Bob in another tab must leave Alice's private view.
     const switching = peer.waitForRequest(request => new URL(request.url()).pathname === '/sign-in');
     owner = 'bob'; await page.reload(); await switching;
     await peer.waitForFunction(() => typeof account !== 'undefined' && account?.id === 'bob');

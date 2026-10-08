@@ -15,6 +15,7 @@ def main():
     settings = json.loads(response['SecretString'])
     allowed = {'OPENAI_API_KEY', 'SUPERMEMORY_API_KEY', 'OPENAI_CHAT_MODEL', 'PUBLIC_BASE_URL',
                'COGNITO_POOL_ID', 'COGNITO_CLIENT_ID', 'COGNITO_DOMAIN', 'ORIGIN_SECRET',
+               'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
                'MAX_CONCURRENT_ANSWERS', 'QUESTIONS_PER_USER_DAY', 'QUESTIONS_PER_DAY', 'PUBLIC_AUTH_MODE'}
     for key in allowed:
         if key in settings:

@@ -1,26 +1,43 @@
 # Knowledge Retriever
 
-## AWS deployment with private accounts
+## AWS deployment with private Google accounts
 
 The production entry point is `knowledge.public_server:create_app`, served by Uvicorn.
 `python -m knowledge serve` remains the loopback-only local demo. AWS deployments default
-to `PUBLIC_AUTH_MODE=cognito`: users sign in with a verified email through the existing
-Cognito user pool. `/sign-in` is a public entry page; the reader and private APIs require
-a session. Cognito handles registration, email verification, passwords, and recovery.
-Authorization codes use PKCE, state, and nonce checks. Session cookies are secure and
-HttpOnly; provider tokens and passwords are never stored by the application.
+to `PUBLIC_AUTH_MODE=google`. The branded `/sign-in` and `/sign-up` pages use the same
+Google sign-in flow for new and returning users, without a separate application password.
+Google account selection opens directly; the application does not send users through
+Cognito's hosted form in this mode.
 
-Every question, saved response, and collection belongs to the verified account ID.
-Knowing another account's response URL does not grant access. Sign-in preserves only
-allowlisted reader routes; sign-out and account changes hide private content in open
-tabs. The same account can reopen its saved data across devices. Local developer and
-old guest history are never automatically attached to a signed-in account. Collections
-use revision checks to prevent one tab overwriting another. Import and raw-search APIs
-remain unavailable publicly.
+Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to the ignored project `.env`, using a
+Google OAuth **Web application** client. Register the exact production redirect URI:
 
-`PUBLIC_AUTH_MODE=guest` remains an explicit optional mode. It isolates data by browser
-session for up to 30 days, without cross-device identity. It does not share guest data
-publicly and does not inherit authenticated or unowned history.
+```
+https://d34tjhbhxxm88k.cloudfront.net/auth/callback
+```
+
+For another deployment, replace the hostname with its `PUBLIC_BASE_URL`. Configure the
+Google consent screen with the app name and intended audience. While the Google app is
+in testing, only its configured test users can sign in. This server-side redirect flow
+does not need a browser client secret or Google JavaScript SDK. Configuration follows
+[Google's OpenID Connect documentation](https://developers.google.com/identity/openid-connect/openid-connect).
+The deployer refuses incomplete credentials before changing runtime settings. Credentials
+are uploaded to the existing AWS Secrets Manager secret, never bundled with the frontend.
+
+The callback checks a single-use state, PKCE, nonce, Google's signature, issuer, audience,
+expiry, and verified email. Account ownership uses the stable Google subject ID, never an
+email match. Provider tokens and passwords are not stored. Cookies are secure and HttpOnly.
+Every question, saved response, and collection belongs to its signed-in account. Knowing
+another account's response URL does not grant access. Login and signup retain allowlisted
+reader routes, including after cancellation or retry. Sign-out clears private open tabs
+and ends this app's session without signing the user out of Google.
+
+Old guest, local developer, and Cognito history are not automatically assigned to Google
+accounts, even when email addresses match. The previous Cognito resources remain intact
+for explicit `PUBLIC_AUTH_MODE=cognito` compatibility; they are not used by Google mode.
+`PUBLIC_AUTH_MODE=guest` is an explicit optional mode with browser isolation for up to 30
+days and no cross-device identity. Collections use revision checks to prevent conflicting
+saves between tabs. Import and raw-search APIs remain unavailable publicly.
 
 The deployment code provisions a dedicated VPC, one `t3.small` EC2 instance in Mumbai
 by default, a retained encrypted 20 GiB data volume, CloudFront with a private VPC
@@ -138,10 +155,10 @@ for usage accounting. New browser sessions are limited to 10 per IP per minute a
 active sessions in total. Attempts count toward question limits,
 including provider failures. These are request limits, not a guaranteed monetary cap.
 Question limits can be adjusted in the runtime secret followed by a service restart.
-Guest sessions expire after 30 days. In Cognito mode, sessions expire after at
-most one hour; Cognito supplies sign-up, email verification and password recovery. Its
-built-in email sender has service limits; configure an SES sender before expanding
-sign-up volume. This is one instance in one availability zone, so backups
+Guest sessions expire after 30 days. Signed-in sessions expire after at most one hour;
+signing in again restores the same account’s saved data. Google handles identity and
+account recovery in Google mode. The optional legacy Cognito mode has separate email
+sender limits. This is one instance in one availability zone, so backups
 provide recovery, not automatic high availability. Do not increase Uvicorn workers or
 add instances without coordinating admission limits and moving account storage to a
 shared database.
@@ -282,8 +299,9 @@ updates, rename/delete/undo, backup restoration, duplicate imports, and keyboard
 Use `GUEST_MODE=1` to exercise the optional guest interface. Install
 `requirements-production.txt` to run all Python tests including the public server.
 `npm run test:auth` runs isolated browser fixtures for sign-in routes, responsive
-layouts, account changes, expired sessions, and cross-tab sign-out during generation.
-It does not create Cognito users or test verification-email delivery.
+layouts, signup/signin switching, retry routes, account changes, expired sessions, and
+cross-tab sign-out during generation. Provider identities in these tests are simulated;
+a real Google consent/callback check requires configured credentials and a test user.
 
 ### Run the frontend and backend separately
 

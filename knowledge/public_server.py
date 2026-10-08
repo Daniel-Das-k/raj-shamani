@@ -7,6 +7,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 import hmac
+from html import escape
 import ipaddress
 import json
 import logging
@@ -16,7 +17,7 @@ import queue
 import re
 import threading
 import time
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
@@ -27,6 +28,7 @@ from starlette.routing import Route
 
 from .accounts import Accounts, CollectionConflict, GUEST_SESSION_SECONDS, UsageLimit
 from .cognito_auth import Cognito
+from .google_auth import Google
 from .raj_library import RajShamaniLibrary
 from .response_history import ResponseHistory
 from .server import STATIC, recorded_answer
@@ -40,6 +42,8 @@ ASSETS = {
     '/catalog.json': 'catalog.json', '/favicon.svg': 'favicon.svg',
     '/geist-latin.woff2': 'geist-latin.woff2', '/media/huberman.png': 'media/huberman.png',
     '/media/raj-shamani.jpg': 'media/raj-shamani.jpg',
+    '/media/google-g.png': 'media/google-g.png',
+    '/google-sans.ttf': 'google-sans.ttf',
 }
 
 
@@ -54,14 +58,27 @@ def reader_return_path(value):
         r'/(?:#(?:discover|conversations|saved(?:/history)?|answer(?:/[a-f0-9]{32})?))?', value) else '/'
 
 
-def sign_in_page(*, signed_out=False, error=False):
+def sign_in_page(*, mode='google', signup=False, signed_out=False, error=None, return_to='/'):
     page = (STATIC / 'sign-in.html').read_text(encoding='utf-8')
+    if signup:
+        page = page.replace('Sign in.</h1>', 'Create an account.</h1>')
+        page = page.replace('Access your saved questions and collections.', 'Save questions and clips to your account.')
+        page = page.replace('New here?', 'Already have an account?')
+        page = page.replace('href="/sign-up">Create an account', 'href="/sign-in">Sign in')
+        page = page.replace('Sign in — Figuring Out', 'Create an account — Figuring Out')
     if signed_out:
-        page = page.replace('Sign in to Figuring Out.', 'You’re signed out.')
+        page = page.replace('Sign in.</h1>', 'You’re signed out.</h1>')
+    if mode == 'cognito':
+        page = page.replace('data-provider="google"', 'data-provider="cognito"')
+        page = page.replace('Continue with Google', 'Continue with email')
     if error:
-        page = page.replace('Sign in to Figuring Out.', 'Sign-in could not finish.')
-        page = page.replace('Your questions, answers, and collections stay in your account.',
-                            'Please start sign-in again.')
+        message = {'cancelled': 'Sign-in was cancelled. You can try again.',
+                   'expired': 'This sign-in attempt expired. Please try again.'}.get(error, 'Sign-in could not finish. Please try again.')
+        page = page.replace('role="alert" hidden></p>', 'role="alert">' + message + '</p>')
+    # Server fallback also preserves routes when JavaScript is unavailable.
+    query = escape(urlencode({'next': reader_return_path(return_to)}), quote=True)
+    for path in ('/auth/login', '/sign-in', '/sign-up'):
+        page = page.replace(f'href="{path}"', f'href="{path}?{query}"')
     return page
 
 
@@ -128,9 +145,9 @@ class LoginLimiter:
 
 def create_app(config=None, *, library_factory=None, identity=None):
     config = dict(os.environ if config is None else config)
-    auth_mode = config.get('PUBLIC_AUTH_MODE', 'cognito')
-    if auth_mode not in {'guest', 'cognito'}:
-        raise ValueError('PUBLIC_AUTH_MODE must be guest or cognito.')
+    auth_mode = config.get('PUBLIC_AUTH_MODE', 'google')
+    if auth_mode not in {'guest', 'cognito', 'google'}:
+        raise ValueError('PUBLIC_AUTH_MODE must be google, guest or cognito.')
     guest_mode = auth_mode == 'guest'
     cookie_name = GUEST_COOKIE if guest_mode else SESSION_COOKIE
     base_url = config.get('PUBLIC_BASE_URL', '').rstrip('/')
@@ -144,7 +161,10 @@ def create_app(config=None, *, library_factory=None, identity=None):
     data = Path(config['DATA_DIR'])
     accounts = Accounts(data / 'accounts.sqlite3')
     history = ResponseHistory(data / 'responses.sqlite3')
-    if not guest_mode:
+    if auth_mode == 'google':
+        identity = identity or Google(client_id=config.get('GOOGLE_CLIENT_ID', ''),
+                                      client_secret=config.get('GOOGLE_CLIENT_SECRET', ''), base_url=base_url)
+    elif not guest_mode:
         identity = identity or Cognito(region=config['AWS_REGION'], pool_id=config['COGNITO_POOL_ID'],
                                       client_id=config['COGNITO_CLIENT_ID'], domain=config['COGNITO_DOMAIN'], base_url=base_url)
     if library_factory is None:
@@ -177,6 +197,8 @@ def create_app(config=None, *, library_factory=None, identity=None):
     def current_session(request):
         current = accounts.session(request.cookies.get(cookie_name))
         if current and current['owner_id'].startswith('guest-') != guest_mode:
+            return None
+        if current and not guest_mode and current['owner_id'].startswith('google-') != (auth_mode == 'google'):
             return None
         return current
 
@@ -243,7 +265,8 @@ def create_app(config=None, *, library_factory=None, identity=None):
         # Never include private application content on this public page.
         if current_session(request):
             return RedirectResponse(reader_return_path(request.query_params.get('next')), 303)
-        return HTMLResponse(sign_in_page())
+        return HTMLResponse(sign_in_page(mode=auth_mode, signup=request.url.path == '/sign-up',
+            error=request.query_params.get('error'), return_to=request.query_params.get('next')))
 
     def login(request):
         if guest_mode:
@@ -265,14 +288,23 @@ def create_app(config=None, *, library_factory=None, identity=None):
             raise HTTPException(400, 'Sign-in expired or could not be verified. Start again.')
         attempt = accounts.consume_login(state)
         code = request.query_params.get('code', '')
-        if not attempt or not code or len(code) > 4096:
+        if not attempt:
             raise HTTPException(400, 'Sign-in expired or was cancelled. Start again.')
+        def retry(reason):
+            response = RedirectResponse('/sign-in?' + urlencode({'error': reason,
+                'next': reader_return_path(attempt.get('return_to'))}), 303)
+            response.delete_cookie(LOGIN_COOKIE, secure=True, httponly=True, samesite='lax')
+            return response
+        if request.query_params.get('error'):
+            return retry('cancelled' if request.query_params['error'] == 'access_denied' else 'failed')
+        if not code or len(code) > 4096:
+            return retry('expired')
         try:
             claims = identity.exchange(code, attempt['verifier'], attempt['nonce'])
             token = accounts.create_session(**claims)
         except Exception:
             LOG.warning('Sign-in exchange failed; provider details omitted')
-            raise HTTPException(400, 'Sign-in could not be completed. Please start again.') from None
+            return retry('failed')
         response = RedirectResponse(reader_return_path(attempt.get('return_to')), 303)
         response.delete_cookie(LOGIN_COOKIE, secure=True, httponly=True, samesite='lax')
         old_token = request.cookies.get(SESSION_COOKIE)
@@ -296,7 +328,7 @@ def create_app(config=None, *, library_factory=None, identity=None):
     def signed_out(request):
         if guest_mode:
             return RedirectResponse('/', 303)
-        return HTMLResponse(sign_in_page(signed_out=True))
+        return HTMLResponse(sign_in_page(mode=auth_mode, signed_out=True))
 
     def assets(request):
         filename = ASSETS.get(request.url.path)
@@ -434,13 +466,13 @@ def create_app(config=None, *, library_factory=None, identity=None):
         message = exc.detail if isinstance(exc, HTTPException) else str(exc) if code < 500 else 'The request could not finish. Please try again.'
         if request.url.path in ('/auth/login', '/auth/callback'):
             # Fixed copy; provider errors and query parameters are never reflected.
-            return HTMLResponse(sign_in_page(error=True), code)
+            return HTMLResponse(sign_in_page(mode=auth_mode, error='expired' if code == 400 else 'failed'), code)
         body = {'error': message}
         if isinstance(exc, SessionChanged):
             body['code'] = 'session_changed'
         return JSONResponse(body, code, headers=getattr(exc, 'headers', None))
 
-    routes = [Route('/', homepage), Route('/sign-in', sign_in), Route('/auth/login', login), Route('/auth/callback', callback),
+    routes = [Route('/', homepage), Route('/sign-in', sign_in), Route('/sign-up', sign_in), Route('/auth/login', login), Route('/auth/callback', callback),
               Route('/signed-out', signed_out), Route('/api/account', account),
               Route('/auth/logout', logout, methods=['POST']), Route('/api/status', status), Route('/api/videos', videos),
               Route('/api/responses', responses), Route('/api/responses/{record_id}', responses),

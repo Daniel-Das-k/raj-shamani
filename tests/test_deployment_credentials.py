@@ -11,6 +11,17 @@ from deployment import aws_deploy
 
 
 class DeploymentCredentialsTests(unittest.TestCase):
+    def test_google_credentials_stay_paired_and_fail_before_deployment_when_incomplete(self):
+        complete = {'GOOGLE_CLIENT_ID': 'test.apps.googleusercontent.com', 'GOOGLE_CLIENT_SECRET': 'synthetic-secret'}
+        self.assertEqual(aws_deploy.auth_configuration(complete), {'PUBLIC_AUTH_MODE': 'google', **complete})
+        self.assertEqual(aws_deploy.auth_configuration({'PUBLIC_AUTH_MODE': 'cognito'}), {'PUBLIC_AUTH_MODE': 'cognito'})
+        for partial in [{'GOOGLE_CLIENT_ID': complete['GOOGLE_CLIENT_ID']},
+                        {'GOOGLE_CLIENT_SECRET': complete['GOOGLE_CLIENT_SECRET']}]:
+            combined = aws_deploy.provider_configuration(partial, complete)
+            with self.assertRaises(ValueError):
+                aws_deploy.auth_configuration(combined)
+        self.assertEqual(aws_deploy.provider_configuration(complete, {'GOOGLE_CLIENT_SECRET': 'wrong'}), complete)
+
     def session_kwargs(self, file_values=None, environ=None, **options):
         with patch.object(aws_deploy.boto3, 'Session') as create:
             aws_deploy.aws_session(file_values=file_values or {}, environ=environ or {}, **options)

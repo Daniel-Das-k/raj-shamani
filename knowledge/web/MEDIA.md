@@ -11,3 +11,6 @@
 - Geist font: see `Geist-OFL.txt`.
 
 The presentation does not imply endorsement by the people pictured.
+
+- `google-g.png`: unmodified official Google sign-in logo from https://developers.google.com/static/identity/images/g-logo.png, used only for Google authentication. Button guidance: https://developers.google.com/identity/branding-guidelines.
+- `google-sans.ttf`: Google Sans Medium from Google Fonts, using its official text subset for the provider button (Continue with Google / email). License: `GoogleSans-OFL.txt`. Source: https://fonts.google.com/specimen/Google+Sans.

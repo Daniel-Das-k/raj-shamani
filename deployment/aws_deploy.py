@@ -20,6 +20,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from dotenv import dotenv_values
 
 from knowledge.providers import DEFAULT_OPENAI_MODEL
+from knowledge.google_auth import Google
 from .template import template
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +30,27 @@ def provider_configuration(file_values, environ=None):
     """Explicit project settings take precedence over inherited shell values."""
     environ = os.environ if environ is None else environ
     keys = ('OPENAI_API_KEY', 'SUPERMEMORY_API_KEY', 'OPENAI_CHAT_MODEL', 'PUBLIC_AUTH_MODE')
-    return {key: value for key in keys if (value := file_values.get(key) or environ.get(key))}
+    result = {key: value for key in keys if (value := file_values.get(key) or environ.get(key))}
+    # A client ID and its secret must come from the same source, just like AWS credentials.
+    google_keys = ('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET')
+    for source in (file_values, environ):
+        if any(source.get(key) for key in google_keys):
+            result.update({key: source.get(key, '') for key in google_keys})
+            break
+    return result
+
+
+def auth_configuration(values):
+    mode = values.get('PUBLIC_AUTH_MODE', 'google')
+    if mode not in {'google', 'guest', 'cognito'}:
+        raise ValueError('PUBLIC_AUTH_MODE must be google, guest or cognito.')
+    result = {'PUBLIC_AUTH_MODE': mode}
+    if mode == 'google':
+        result.update({key: values.get(key, '') for key in ('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET')})
+        # Fail before modifying AWS settings when either credential is absent or malformed.
+        Google(client_id=result['GOOGLE_CLIENT_ID'], client_secret=result['GOOGLE_CLIENT_SECRET'],
+               base_url='https://reader.example.test')
+    return result
 
 
 def cloudfront_prefix_list(client):
@@ -87,7 +108,9 @@ def package(output):
             for path in sorted((ROOT / 'knowledge').glob('*.py')):
                 archive.add(path, arcname=path.relative_to(ROOT))
             for path in sorted((ROOT / 'knowledge/web').rglob('*')):
-                if path.is_file() and path.suffix in {'.js', '.css', '.html', '.json', '.svg', '.woff2', '.png', '.jpg'}:
+                if path.is_file() and path.suffix in {'.js', '.css', '.html', '.json', '.svg', '.woff2', '.ttf', '.png', '.jpg'}:
+                    archive.add(path, arcname=path.relative_to(ROOT))
+                elif path.is_file() and path.name.endswith('-OFL.txt'):
                     archive.add(path, arcname=path.relative_to(ROOT))
             for path in sorted((ROOT / 'deployment').iterdir()):
                 if path.is_file() and path.suffix in {'.py', '.sh'}:
@@ -250,9 +273,10 @@ def main():
     values = provider_configuration(file_values)
     if not all(values.get(k) for k in ['OPENAI_API_KEY', 'SUPERMEMORY_API_KEY']):
         raise SystemExit('Configure both provider keys locally before provisioning.')
-    auth_mode = values.get('PUBLIC_AUTH_MODE', 'cognito')
-    if auth_mode not in {'guest', 'cognito'}:
-        raise SystemExit('PUBLIC_AUTH_MODE must be guest or cognito.')
+    try:
+        auth_settings = auth_configuration(values)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from None
     cloudformation = session.client('cloudformation')
     cloudformation.validate_template(TemplateBody=template_path.read_text())
     try:
@@ -284,10 +308,12 @@ def main():
     settings = json.loads(secrets.get_secret_value(SecretId=outputs['SettingsSecretArn'])['SecretString'])
     settings.update({key: values[key] for key in ['OPENAI_API_KEY', 'SUPERMEMORY_API_KEY']})
     settings.update({'OPENAI_CHAT_MODEL': values.get('OPENAI_CHAT_MODEL', DEFAULT_OPENAI_MODEL),
-        'PUBLIC_AUTH_MODE': auth_mode,
         'PUBLIC_BASE_URL': outputs['URL'], 'COGNITO_POOL_ID': outputs['UserPoolId'],
         'COGNITO_CLIENT_ID': outputs['UserClientId'], 'COGNITO_DOMAIN': outputs['CognitoDomain'],
         'MAX_CONCURRENT_ANSWERS': '2', 'QUESTIONS_PER_USER_DAY': '20', 'QUESTIONS_PER_DAY': '200'})
+    for key in ('GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'):
+        settings.pop(key, None)
+    settings.update(auth_settings)
     secrets.put_secret_value(SecretId=outputs['SettingsSecretArn'], SecretString=json.dumps(settings))
     bucket = outputs['StorageBucket']
     key = f'releases/{checksum}.tar.gz'

@@ -32,7 +32,7 @@ class PublicServerTests(unittest.TestCase):
             return SimpleNamespace(store=object(), llm=SimpleNamespace(model_name='fixture'),
                 answer=self.answer, ready_videos=lambda: [{'id': 'Y566_T-YlNQ'}],
                 status=lambda: {'sources': [], 'total': 1}, close=lambda: None)
-        self.app = create_app({'DATA_DIR': str(self.data), 'PUBLIC_BASE_URL': BASE, 'ORIGIN_SECRET': SECRET,
+        self.app = create_app({'PUBLIC_AUTH_MODE': 'cognito', 'DATA_DIR': str(self.data), 'PUBLIC_BASE_URL': BASE, 'ORIGIN_SECRET': SECRET,
             'MAX_CONCURRENT_ANSWERS': '2', 'QUESTIONS_PER_USER_DAY': '3', 'QUESTIONS_PER_DAY': '5'},
             library_factory=library, identity=self.identity)
         self.context = TestClient(self.app, base_url=BASE, headers={'X-Reader-Origin': SECRET}, follow_redirects=False)
@@ -60,7 +60,7 @@ class PublicServerTests(unittest.TestCase):
         self.assertEqual(home.headers['location'], '/sign-in')
         page = self.client.get('/sign-in')
         self.assertEqual(page.status_code, 200)
-        self.assertIn('Sign in to Figuring Out.', page.text)
+        self.assertIn('Sign in.</h1>', page.text)
         self.assertNotIn('id="response-history"', page.text)
         self.assertEqual(page.headers['cache-control'], 'no-store')
         self.assertEqual(self.client.get('/sign-in.js').status_code, 200)
