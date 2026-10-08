@@ -163,13 +163,23 @@ resources continue to incur charges until explicitly cleaned up.
 The browser now opens an editorial discovery experience with real episodes from
 the committed `INDEXED_VIDEOS.md` snapshot. It includes topic and title search,
 episode playback, and named collections stored in this browser's local storage.
+In the deployed guest/account modes, collection changes refresh on reopening the
+view, returning to the tab, and periodically while visible. Open tabs in the same
+session receive change notifications. Bookmark state and counts update after a
+successful save or removal; delayed reads cannot replace newer saves. The save
+dialog defaults to the selected collection, and saved clips show both time bounds.
 The snapshot is a browsing catalog; it does not mark any video as searchable.
 Original captions and provider configuration are still required for checked answers.
 
-When connected, questions use `POST /api/ask/stream`. The server sends progress text,
+When connected, questions use `POST /api/ask/stream`. The server sends progress text
+with allowlisted search/compose phases,
 then one final checked response, using newline-delimited JSON. Retrieved candidates
 stay internal. The browser shows the answer or a clear outcome first, followed by
-verified supporting moments and the next-question composer. It also ignores interim
+verified supporting moments and the next-question composer. While generating, the
+next-question form and "Ask another" action are hidden. A plain progress list follows
+the actual server phases and shows elapsed time without an estimated completion time.
+The form returns on success or failure. The homepage omits promotional callouts and
+uses direct labels for browsing, saving, and asking questions. It also ignores interim
 excerpts from older servers. The final response uses the existing verification
 pipeline and is saved to response history. The JSON `/api/ask` endpoint remains
 available. A remote Supermemory search failure falls back to local keyword retrieval

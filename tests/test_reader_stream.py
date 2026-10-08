@@ -40,10 +40,10 @@ class ReaderStreamTests(unittest.TestCase):
 
     def answer(self, question, source_id=None, *, progress=None):
         self.assertEqual(question, "Explain memory")
-        progress({"type": "stage", "message": "Searching"})
+        progress({"type": "stage", "message": "Searching", "phase": "internal-provider-stage"})
         # Even an older retrieval implementation must not publish candidates.
         progress({"type": "excerpts", "excerpts": [self.citation]})
-        progress({"type": "stage", "message": "Preparing your answer", "excerpts": [self.citation]})
+        progress({"type": "stage", "phase": "compose", "message": "Preparing your answer", "excerpts": [self.citation]})
         if not self.release.wait(5):
             raise RuntimeError("Test never released synthesis")
         return self.final
@@ -56,9 +56,9 @@ class ReaderStreamTests(unittest.TestCase):
     def test_only_progress_precedes_synthesis_and_final_answer_is_saved(self):
         with urlopen(self.request(), timeout=5) as response:
             self.assertIn("application/x-ndjson", response.headers["Content-Type"])
-            self.assertEqual(json.loads(response.readline())["type"], "stage")
+            self.assertEqual(json.loads(response.readline()), {"type": "stage", "message": "Searching"})
             event = json.loads(response.readline())
-            self.assertEqual(event, {"type": "stage", "message": "Preparing your answer"})
+            self.assertEqual(event, {"type": "stage", "phase": "compose", "message": "Preparing your answer"})
             self.assertFalse(self.release.is_set())
             self.release.set()
             final = json.loads(response.readline())

@@ -277,7 +277,10 @@ def handler_for(demo: Demo):
             def progress(event):
                 # Retrieval candidates are internal until the answer is checked.
                 if event.get("type") == "stage" and isinstance(event.get("message"), str):
-                    emit({"type": "stage", "message": event["message"]})
+                    stage = {"type": "stage", "message": event["message"]}
+                    if event.get("phase") in ("search", "compose"):
+                        stage["phase"] = event["phase"]
+                    emit(stage)
 
             body, status = recorded_answer(demo, history, payload, progress=progress)
             emit({"type": "answer", "response": body, "http_status": status})

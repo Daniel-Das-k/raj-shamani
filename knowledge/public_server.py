@@ -352,7 +352,10 @@ def create_app(config=None, *, library_factory=None, identity=None):
                 library = library_factory()
                 def progress(event):
                     if event.get('type') == 'stage' and isinstance(event.get('message'), str):
-                        events.put({'type': 'stage', 'message': event['message']})
+                        stage = {'type': 'stage', 'message': event['message']}
+                        if event.get('phase') in ('search', 'compose'):
+                            stage['phase'] = event['phase']
+                        events.put(stage)
                 result, code = recorded_answer(library, history.for_owner(owner),
                                                {'question': question, 'source_id': source_id}, progress=progress)
                 # Diagnostics remain private on disk and are never downloadable by users.

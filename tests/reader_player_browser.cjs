@@ -107,6 +107,7 @@ const path = require('node:path');
     await page.locator('.main-nav [data-view=saved]').click();
     await page.reload();
     await page.locator('#collection-tabs button').filter({hasText: 'Playback checks'}).click();
+    assert.equal(await page.locator('#saved-grid .episode-meta').textContent(), 'Saved clip · 1:40–1:47');
     await checkPlayback(() => page.locator('#saved-grid .episode-art').click(), '#video-container', '100', '107');
     assert.equal(await page.locator('#video-external').getAttribute('href'), 'https://www.youtube.com/watch?v=' + first.source_id);
     const [savedFullVideo] = await Promise.all([
@@ -117,6 +118,12 @@ const path = require('node:path');
     assert.equal(await page.locator('#video-dialog').evaluate(dialog => dialog.open), false);
     await savedFullVideo.close();
     await page.locator('#video-container iframe').waitFor({state: 'detached'});
+    // Clips sharing a start point can have different ends and must remain distinct.
+    await page.evaluate(clip => openSave({...clip, kind: 'moment', end: 130}), first);
+    await page.locator('#confirm-save').click();
+    await page.locator('#save-dialog').waitFor({state: 'hidden'});
+    assert.equal(await page.locator('#saved-grid .catalog-card').count(), 2);
+    assert.deepEqual(await page.locator('#saved-grid .episode-meta').allTextContents(), ['Saved clip · 1:40–1:47', 'Saved clip · 1:40–2:10']);
     await page.locator('.main-nav [data-view=discover]').click();
     await checkPlayback(() => page.getByRole('button', {name: 'Watch the Andrew Huberman conversation', exact: true}).click(),
       '#video-container', null, null);

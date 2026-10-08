@@ -276,11 +276,11 @@ class ChannelLibrary:
             raise ValueError("Another answer is being prepared. Please try again shortly.")
         try:
             if progress:
-                progress({"type": "stage", "message": "Searching the original conversations…"})
+                progress({"type": "stage", "phase": "search", "message": "Searching the original conversations…"})
             retrieved = self.search(question, source_id)
             citations = retrieved["excerpts"]
             if progress and citations:
-                progress({"type": "stage", "message": "Checking the sources and preparing your answer…"})
+                progress({"type": "stage", "phase": "compose", "message": "Checking the sources and preparing your answer…"})
             sources = {}
             for cite in citations:
                 if cite["source_id"] not in sources:

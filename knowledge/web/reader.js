@@ -6,6 +6,9 @@ const storageKey = 'figuring-out.collections.v1';
 const guestMode = document.documentElement.dataset.accounts === 'guest';
 const accountRequired = guestMode || document.documentElement.dataset.accounts === 'required';
 let account = null, collectionRevision = 0, collectionsReady = !accountRequired;
+let collectionLoadVersion = 0, collectionSaving = false;
+const collectionChannel = accountRequired && typeof BroadcastChannel === 'function'
+  ? new BroadcastChannel('figuring-out.collections.changed') : null;
 let catalog = [], status = null, view = 'discover', topic = '', query = '', visibleCount = 12;
 let collections = [], currentCollection = '', pendingSave = null, busy = false, historyOffset = 0;
 let toastTimer, statusTimer, lastFocused = null;
@@ -82,7 +85,25 @@ function imageFor(item, alt = '') {
   }, {once: true});
   return image;
 }
-function itemKey(item) { return `${videoID(item)}:${item.kind === 'moment' ? Number(item.start) || 0 : 'episode'}`; }
+function itemKey(item) {
+  const moment = item.kind === 'moment' || typeof item.quote === 'string';
+  return `${videoID(item)}:${moment ? `${Number(item.start) || 0}:${Number(item.end) || 0}` : 'episode'}`;
+}
+function saveButton(item, label) {
+  const node = iconButton(label, 'save', () => openSave(item));
+  node.dataset.saveKey = itemKey(item); markSaved(node); return node;
+}
+function markSaved(node) {
+  const key = node.dataset.saveKey || `${node.dataset.save}:episode`;
+  const names = collections.filter(c => c.items.some(item => itemKey(item) === key)).map(c => c.name);
+  node.setAttribute('aria-pressed', String(Boolean(names.length)));
+  node.title = names.length ? `Saved in ${names.join(', ')}` : 'Save to collection';
+  node.disabled = collectionSaving || !collectionsReady;
+}
+function updateSaveButtons() {
+  document.querySelectorAll('[data-save], [data-save-key]').forEach(markSaved);
+  document.querySelectorAll('.remove-save, #new-collection').forEach(node => { node.disabled = collectionSaving || !collectionsReady; });
+}
 function savedItem(item) {
   const id = videoID(item);
   if (!validID(id)) throw new Error('This conversation cannot be saved.');
@@ -108,38 +129,51 @@ function loadCollections() {
   }
 }
 async function persist(next) {
-  if (accountRequired) {
-    if (!account || !collectionsReady) { toast('Reload your collections before saving changes.'); return false; }
-    try {
-      const result = await api('/api/collections', {method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({revision: collectionRevision, items: next})});
-      collectionRevision = result.revision; collections = result.items; updateSavedCount(); return true;
-    } catch (error) {
-      if (error.status === 409) {
-        collectionsReady = false;
-        try { await refreshCollections(); if (view === 'saved') renderSaved(); } catch {}
+  if (collectionSaving) return false;
+  collectionSaving = true; collectionLoadVersion++; updateSaveButtons();
+  try {
+    if (accountRequired) {
+      if (!account || !collectionsReady) { toast('Reload your collections before saving changes.'); return false; }
+      try {
+        const result = await api('/api/collections', {method: 'PUT', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({revision: collectionRevision, items: next})});
+        collectionRevision = result.revision; collections = result.items; updateSavedCount();
+        collectionChannel?.postMessage({owner: account.id}); return true;
+      } catch (error) {
+        if (error.status === 409) {
+          collectionsReady = false;
+          collectionSaving = false;
+          try { await refreshCollections(); if (view === 'saved') renderSaved(); } catch {}
+        }
+        toast(error.message); return false;
       }
-      toast(error.message); return false;
     }
-  }
-  try { localStorage.setItem(storageKey, JSON.stringify(next)); collections = next; updateSavedCount(); return true; }
-  catch { toast('This could not be saved. Check the available browser storage.'); return false; }
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); collections = next; updateSavedCount(); return true; }
+    catch { toast('This could not be saved. Check the available browser storage.'); return false; }
+  } finally { collectionSaving = false; updateSaveButtons(); }
 }
-function updateSavedCount() { $('#saved-count').textContent = String(collections.reduce((n, c) => n + c.items.length, 0)); }
+function updateSavedCount() { $('#saved-count').textContent = String(collections.reduce((n, c) => n + c.items.length, 0)); updateSaveButtons(); }
+function refreshCollectionOptions() {
+  const selected = $('#collection-select').value || currentCollection;
+  $('#collection-select').replaceChildren(...collections.map(c => { const o = el('option', '', c.name); o.value = c.id; return o; }));
+  if (collections.some(c => c.id === selected)) $('#collection-select').value = selected;
+}
 function openSave(item = null) {
   if (!collectionsReady) { toast('Your collections could not load. Refresh this page before saving.'); return; }
   pendingSave = item ? savedItem(item) : null;
-  $('#save-heading').textContent = item ? 'Keep this perspective.' : 'A collection of your own.';
-  $('#save-description').textContent = item ? (item.guest || item.title) : 'Give your ideas somewhere to grow.';
-  $('#collection-select').replaceChildren(...collections.map(c => { const o = el('option', '', c.name); o.value = c.id; return o; }));
+  $('#save-heading').textContent = item ? 'Save to collection' : 'New collection';
+  $('#save-description').textContent = item ? (item.guest || item.title) : 'Enter a collection name.';
+  $('#collection-select').replaceChildren(); refreshCollectionOptions();
   $('#collection-select').disabled = !item;
   $('#collection-name').value = ''; $('#collection-name').required = !item || !collections.length;
   $('#save-error').textContent = ''; $('#confirm-save').replaceChildren(document.createTextNode(item ? 'Save to collection ' : 'Create collection '), icon(item ? 'save' : 'plus'));
   lastFocused = document.activeElement; $('#save-dialog').showModal();
+  syncCollections();
   if (!item) $('#collection-name').focus();
 }
 $('#save-form').addEventListener('submit', async event => {
   event.preventDefault();
+  if (collectionSaving) return;
   const name = $('#collection-name').value.trim();
   let next = collections.map(c => ({...c, items: [...c.items]}));
   let collection = name ? next.find(c => c.name.toLowerCase() === name.toLowerCase()) : next.find(c => c.id === $('#collection-select').value);
@@ -183,7 +217,7 @@ function navigate(next, options = {}) {
   $('#question').placeholder = view === 'answer' ? 'What else are you trying to figure out?' : 'What are you trying to figure out?';
   $('#question-label').textContent = view === 'answer' ? 'Ask another question' : 'What are you trying to figure out?';
   if (view === 'conversations') renderCatalog();
-  if (view === 'saved') { renderSaved(); historyOffset = 0; loadHistory(); }
+  if (view === 'saved') { renderSaved(); syncCollections(); historyOffset = 0; loadHistory(); }
   updateResume();
   updateConnection();
   if (options.scroll !== false) window.scrollTo({top: 0, behavior: 'instant'});
@@ -232,17 +266,17 @@ function episodeArt(video) {
 function episodeCard(video, className = 'catalog-card', collectionId = '') {
   const article = el('article', className); article.append(episodeArt(video));
   const copy = el('div', 'episode-copy');
-  copy.append(el('p', 'episode-meta', video.kind === 'moment' ? `Saved moment · ${timeLabel(video.start)}` : (video.topic || 'Figuring Out')));
+  copy.append(el('p', 'episode-meta', video.kind === 'moment' ? `Saved clip · ${clipRange(video)}` : (video.topic || 'Figuring Out')));
   const heading = el('div', 'episode-copy-heading');
-  heading.append(el('h3', '', video.headline || video.display_title || video.title), iconButton(`Save ${video.guest || video.title}`, 'save', () => openSave(video)));
+  heading.append(el('h3', '', video.display_title || video.title), saveButton(video, `Save ${video.guest || video.title}`));
   copy.append(heading, el('p', 'episode-guest', video.guest ? `${video.guest}${video.role ? ' · ' + video.role : ''}` : `Figuring Out${video.episode ? ' · Episode ' + video.episode : ''}`));
   if (collectionId) copy.append(button('Remove from collection', 'remove-save', () => removeSaved(collectionId, itemKey(video))));
   article.append(copy); return article;
 }
 function episodeRow(video) {
   const row = el('article', 'episode-row'), copy = el('div');
-  copy.append(el('p', 'episode-meta', video.topic), el('h3', '', video.headline || video.display_title), el('p', 'episode-guest', video.guest || 'Figuring Out'));
-  row.append(episodeArt(video), copy, iconButton(`Save ${video.guest || video.title}`, 'save', () => openSave(video))); return row;
+  copy.append(el('p', 'episode-meta', video.topic), el('h3', '', video.display_title || video.title), el('p', 'episode-guest', video.guest || 'Figuring Out'));
+  row.append(episodeArt(video), copy, saveButton(video, `Save ${video.guest || video.title}`)); return row;
 }
 function renderHome() {
   $('#home-topics').replaceChildren(...topics.map((name, i) => {
@@ -259,7 +293,7 @@ function matches(video) {
   const tokens = query.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
   const stop = new Set('the a an how can i do does what is are to of on for my me and with conversations videos say about'.split(' '));
   const terms = tokens.filter(t => !stop.has(t) && t.length > 1);
-  const text = [video.title, video.topic, video.guest, video.headline].join(' ').toLowerCase();
+  const text = [video.title, video.topic, video.guest].join(' ').toLowerCase();
   return terms.length ? terms.some(term => text.includes(term)) : text.includes(query.toLowerCase());
 }
 function renderCatalog() {
@@ -286,8 +320,9 @@ function renderSaved() {
   const collection = collections.find(c => c.id === currentCollection);
   $('#saved-grid').replaceChildren(...(collection?.items || []).map(item => episodeCard({...findVideo(item.id), ...item}, 'catalog-card', collection.id)));
   if (!collection?.items.length) {
-    const empty = el('div', 'empty-content'); empty.append(el('h3', '', 'A place for your next good idea.'), el('p', '', 'Save conversations and original moments as you explore. They’ll be waiting here when you want to return.'), button('Find a conversation', 'text-link', () => openCatalog(), 'arrow')); $('#saved-grid').append(empty);
+    const empty = el('div', 'empty-content'); empty.append(el('h3', '', collectionsReady ? 'No saved conversations' : 'Collections unavailable'), el('p', '', collectionsReady ? 'Use the bookmark button on a conversation or clip to save it here.' : 'Your collections could not load. Reload this page to try again.'), button('Browse conversations', 'text-link', () => openCatalog(), 'arrow')); $('#saved-grid').append(empty);
   }
+  updateSaveButtons();
 }
 async function loadHistory(offset = 0) {
   const version = ++historyVersion;
@@ -338,6 +373,16 @@ function updateResume() {
   $('#resume-label').textContent = busy ? 'Your question is being checked. Return to the conversation' : 'Return to your last question';
 }
 function setProgress(text, error = false, loading = false) { $('#request-status').textContent = text; $('#request-status').className = 'request-status' + (error ? ' error' : '') + (loading ? ' loading' : ''); }
+function generationPhase(phase) {
+  if (!['search', 'compose'].includes(phase)) return;
+  document.querySelectorAll('#answer-progress [data-phase]').forEach(node => {
+    const active = node.dataset.phase === phase;
+    const complete = phase === 'compose' && node.dataset.phase === 'search';
+    if (active) node.setAttribute('aria-current', 'step');
+    else node.removeAttribute('aria-current');
+    node.querySelector('.phase-state').textContent = active ? 'In progress' : complete ? 'Done' : 'Waiting';
+  });
+}
 function beginAnswer(question, options = {}) {
   navigate('answer', options); $('#asked-question').textContent = question; $('#answer').replaceChildren(); $('#moments').replaceChildren(); $('#moments-section').hidden = true;
   $('#retry-question').hidden = true;
@@ -348,7 +393,7 @@ function momentCard(citation, index, guide) {
   const node = el('article', 'moment'); node.id = `moment-${index + 1}`; node.tabIndex = -1;
   const top = el('div', 'moment-topline'), copy = el('div');
   copy.append(el('h3', '', citation.title || findVideo(videoID(citation))?.title), el('p', '', `Clip ${index + 1} · ${clipRange(citation)}`));
-  top.append(imageFor(citation), copy, iconButton('Save this moment', 'save', () => openSave({...citation, kind: 'moment'}))); node.append(top);
+  top.append(imageFor(citation), copy, saveButton({...citation, kind: 'moment'}, 'Save this moment')); node.append(top);
   const description = guide?.summary || guide?.why_relevant;
   if (description) node.append(el('p', 'moment-copy', description));
   if (guide?.limitation) node.append(el('p', 'moment-limit', guide.limitation));
@@ -423,6 +468,10 @@ async function ask(question, selectedTopic = '', options = {}) {
   if (!options.retry) { $('#question').value = ''; $('#question').style.height = '44px'; }
   beginAnswer(question); setProgress('Searching the original conversations…', false, true);
   updateConnection(); $('#asked-question').focus({preventScroll: true});
+  generationPhase('search'); $('#answer-progress').hidden = false;
+  const startedAt = Date.now();
+  const elapsed = () => { $('#answer-elapsed').textContent = `Elapsed ${timeLabel((Date.now() - startedAt) / 1000)}`; };
+  elapsed(); const elapsedTimer = setInterval(elapsed, 1000);
   const controller = new AbortController();
   let reader, timedOut = false;
   const slowTimer = setTimeout(() => setProgress('This is taking longer than usual. Still preparing your answer…', false, true), 30000);
@@ -438,7 +487,9 @@ async function ask(question, selectedTopic = '', options = {}) {
     const consume = line => {
       if (finished || !line.trim()) return;
       const event = JSON.parse(line);
-      if (event.type === 'stage' && typeof event.message === 'string') setProgress(event.message, false, true);
+      if (event.type === 'stage' && typeof event.message === 'string') {
+        setProgress(event.message, false, true); generationPhase(event.phase);
+      }
       // Older servers may send raw excerpts. Only the final response can show clips.
       if (event.type === 'answer') { renderAnswer(event.response); finished = true; }
     };
@@ -458,7 +509,8 @@ async function ask(question, selectedTopic = '', options = {}) {
       : error.message || 'This request could not finish. Please try again.';
     setProgress(message, true);
   } finally {
-    clearTimeout(slowTimer); clearTimeout(timeout);
+    clearTimeout(slowTimer); clearTimeout(timeout); clearInterval(elapsedTimer);
+    $('#answer-progress').hidden = true;
     if (reader) reader.cancel().catch(() => {});
     controller.abort();
     $('#answer').setAttribute('aria-busy', 'false');
@@ -467,6 +519,10 @@ async function ask(question, selectedTopic = '', options = {}) {
   }
 }
 function updateConnection() {
+  $('#answer-composer').hidden = busy;
+  $('#ask-again').hidden = busy;
+  $('#question-form').hidden = busy;
+  $('#availability-note').hidden = busy;
   const videos = readyVideos(), selected = $('#video-scope').value;
   if (!busy) {
     const first = el('option', '', 'All conversations'); first.value = '';
@@ -476,7 +532,7 @@ function updateConnection() {
   $('#search-mode').textContent = canAnswer() ? 'Ask the archive' : view === 'answer' ? 'Archive unavailable' : 'Browse episodes';
   $('#ask-button').setAttribute('aria-label', view === 'answer' ? 'Ask another question' : canAnswer() ? 'Ask the archive' : 'Browse matching episodes');
   $('#availability-note').textContent = canAnswer() ? 'Answers with clips from the original conversations.' : 'Explore episodes now. Answers become available when the caption archive is connected.';
-  if (view === 'answer') $('#availability-note').textContent = busy ? 'Checking your answer. You can draft your next question while you wait.' : 'Each question searches independently. Include the names or topics you mean.';
+  if (view === 'answer') $('#availability-note').textContent = 'Each question searches independently. Include the names or topics you mean.';
   if (view === 'answer' && !busy && !canAnswer()) $('#availability-note').textContent = 'The answer archive is unavailable. Your draft stays here while the library reconnects.';
   $('#retry-question').disabled = busy;
   $('#archive-status').textContent = `${catalog.length} episodes in this catalog. ${videos.length} conversations currently searchable.`;
@@ -522,7 +578,7 @@ function bind() {
   $('#load-more').addEventListener('click', () => { visibleCount += 12; renderCatalog(); });
   $('#new-collection').addEventListener('click', () => openSave());
   $('#history-more').addEventListener('click', () => loadHistory(historyOffset));
-  $('#ask-again').addEventListener('click', () => { $('#question').focus({preventScroll: true}); $('#answer-composer').scrollIntoView({block: 'center', behavior: 'instant'}); });
+  $('#ask-again').addEventListener('click', () => { if (busy) return; $('#question').focus({preventScroll: true}); $('#answer-composer').scrollIntoView({block: 'center', behavior: 'instant'}); });
   $('#retry-question').addEventListener('click', () => { if (lastQuestion) ask(lastQuestion.question, '', {sourceID: lastQuestion.sourceID, retry: true}); });
   $('#return-to-answer').addEventListener('click', () => navigate('answer'));
   $('#close-watch').addEventListener('click', () => { $('#watch-container').replaceChildren(); $('#watch-panel').hidden = true; lastFocused?.focus({preventScroll: true}); });
@@ -532,7 +588,9 @@ function bind() {
   $('#save-dialog').addEventListener('close', () => lastFocused?.focus());
   $('#about-button').addEventListener('click', () => $('#about-dialog').showModal());
   window.addEventListener('hashchange', followRoute);
-  window.addEventListener('storage', event => { if (!accountRequired && event.key === storageKey) { collections = loadCollections(); updateSavedCount(); if (view === 'saved') renderSaved(); } });
+  window.addEventListener('storage', event => { if (!accountRequired && (event.key === storageKey || event.key === null)) { collections = loadCollections(); updateSavedCount(); if (view === 'saved') renderSaved(); if ($('#save-dialog').open) refreshCollectionOptions(); } });
+  collectionChannel?.addEventListener('message', event => { if (event.data?.owner === account?.id) syncCollections(true); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) syncCollections(true); });
   $('#account-button').addEventListener('click', async () => {
     if (busy) { toast('Let your current answer finish before signing out.'); return; }
     try {
@@ -544,13 +602,28 @@ function bind() {
   window.addEventListener('pageshow', event => { if (accountRequired && event.persisted) location.reload(); });
   window.addEventListener('focus', async () => {
     if (!accountRequired || !account) return;
-    try { const fresh = await api('/api/account'); if (fresh.id !== account.id || fresh.csrf !== account.csrf) location.reload(); }
+    try {
+      const fresh = await api('/api/account');
+      if (fresh.id !== account.id || fresh.csrf !== account.csrf) { location.reload(); return; }
+      syncCollections(true);
+    }
     catch (error) { if (error.status === 401) location.reload(); }
   });
 }
 async function refreshCollections() {
+  if (collectionSaving) return;
+  const version = ++collectionLoadVersion;
   const result = await api('/api/collections');
+  // A delayed read must never replace a newer save or another refresh.
+  if (version !== collectionLoadVersion || collectionSaving || result.revision < collectionRevision) return;
+  const changed = !collectionsReady || result.revision !== collectionRevision;
   collections = result.items; collectionRevision = result.revision; collectionsReady = true; updateSavedCount();
+  if (changed && view === 'saved') renderSaved();
+  if (changed && $('#save-dialog').open) refreshCollectionOptions();
+}
+function syncCollections(quiet = false) {
+  if (!accountRequired || !account || collectionSaving) return;
+  return refreshCollections().catch(() => { if (!quiet) toast('Collections could not refresh. Try again shortly.'); });
 }
 async function init() {
   bind();
@@ -563,7 +636,7 @@ async function init() {
         : 'Your saved conversations and moments, available across your devices.';
       $('#history-storage-note').textContent = guestMode ? 'Saved for this browser' : 'Visible only to your account';
       $('#save-dialog .dialog-note').textContent = guestMode ? 'Saved for this browser. No account needed.' : 'Saved to your account.';
-      await refreshCollections();
+      await refreshCollections().catch(() => toast('Your collections could not load. Reload this page before saving.'));
     } catch (error) {
       if (error.status === 401 && !guestMode) { location.replace('/auth/login'); return; }
       toast(guestMode ? 'Your browser session could not load. Allow cookies and refresh before asking or saving.'
@@ -576,6 +649,8 @@ async function init() {
   } catch { $('#editorial-picks').replaceChildren(el('p', 'section-note', 'The episode catalog could not load. Refresh to try again.')); }
   await refreshStatus();
   followRoute();
-  statusTimer = setInterval(() => { if (!document.hidden && !busy) refreshStatus(); }, 15000);
+  statusTimer = setInterval(() => {
+    if (!document.hidden) { if (!busy) refreshStatus(); syncCollections(true); }
+  }, 15000);
 }
 init();
