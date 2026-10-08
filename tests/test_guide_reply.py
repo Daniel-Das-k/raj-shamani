@@ -62,6 +62,14 @@ class GuideReplyTests(unittest.TestCase):
         self.assertEqual(checked['items'][1]['excerpt_ids'], ['E1'])
         self.assertEqual(checked['excerpts'][0]['support_spans'][0]['text'], 'Build a product customers need.')
 
+    def test_readable_parts_keep_each_checked_claim_with_its_own_source(self):
+        result = self.run_reply()
+        self.assertEqual([part['text'] for part in result['answer_parts']],
+                         [sentence['text'] for sentence in self.llm.draft['sentences']])
+        self.assertEqual([[c['source_id'] for c in part['citations']] for part in result['answer_parts']],
+                         [['0123456789a'], ['abcdefghijk']])
+        self.assertEqual(result['answer_limitation'], self.llm.draft['limitation'])
+
     def test_unsupported_reply_is_withheld_after_one_bounded_repair(self):
         self.llm.approve = False
         result = self.run_reply()
@@ -76,6 +84,9 @@ class GuideReplyTests(unittest.TestCase):
                          'These excerpts do not establish that you will become a billionaire by 22.')
         self.assertEqual(len(result['points'][0]['citations']), 1)
         self.assertEqual(result['points'][0]['citations'][0]['source_id'], '0123456789a')
+        self.assertEqual(len(result['answer_parts']), 1)
+        self.assertEqual(result['answer_parts'][0]['text'], 'Build a product customers need.')
+        self.assertEqual(result['answer_limitation'], self.llm.draft['limitation'])
         self.assertEqual(len(self.llm.calls), 3)
 
     def test_unknown_model_citation_cannot_create_a_reference(self):

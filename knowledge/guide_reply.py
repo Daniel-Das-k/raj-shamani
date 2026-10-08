@@ -22,8 +22,10 @@ wealth cannot establish becoming a billionaire by age 22; career traits cannot e
 a six-month promotion. A partial answer is useful: give supported advice and clearly
 state the missing part in limitation. Scope missing evidence to THESE excerpts, never
 claim the entire channel has no answer. Do not claim success is impossible either.
-Write 2–4 complete sentences total, usually 60–100 words, as one coherent paragraph.
-Return the substantive sentences individually, each with IDs of its supporting moments.
+Write 1–3 complete sentences total, usually 40–80 words. Start with a short, direct
+answer. Use the remaining sentences for distinct useful details, not a repetition of
+the first sentence. Keep each sentence easy to scan; retain essential qualifications.
+Return these substantive sentences individually, each with IDs of its supporting moments.
 Write limitation as one additional complete sentence when any requested part is missing;
 use '' if no meaningful part is missing. Do not repeat the limitation in the sentences.
 Use the requested output_language in every displayed field. No headings, bullet points,
@@ -141,7 +143,8 @@ def compose_reply(question, recommendations, llm, audit=None):
                     raise ValueError('The reply limitation does not match the original excerpts.')
             audit['final_status'] = 'ready'
             return {'reply_status': 'ready', 'reply_coverage': 'partial' if partial or limitation.strip() else 'full',
-                    'points': [{'text': text, 'citations': list(cited.values())}]}
+                    'points': [{'text': text, 'citations': list(cited.values())}],
+                    'answer_parts': points, 'answer_limitation': limitation.strip()}
         except (ValueError, KeyError, TypeError, AttributeError) as exc:
             record['validation_error'] = str(exc)
             data = {**data, 'previous_draft': record.get('draft'), 'repair': str(exc),

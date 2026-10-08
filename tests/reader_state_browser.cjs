@@ -18,6 +18,7 @@ module.exports = async function checkReaderState(page) {
     return route.fulfill({json: {items: rows.slice(offset, offset + 20), total: 21}});
   });
   await page.locator('.main-nav [data-view=saved]').click();
+  await page.locator('#history-tab').click();
   await page.waitForFunction(() => document.querySelector('#history-more').disabled);
   await page.locator('.main-nav [data-view=discover]').click();
   await page.locator('.main-nav [data-view=saved]').click();
@@ -52,6 +53,7 @@ module.exports = async function checkReaderState(page) {
   assert.equal(await page.locator('#video-scope').count(), 0);
 
   await page.locator('.main-nav [data-view=saved]').click();
+  await page.locator('#collections-tab').click();
   await page.evaluate(() => {
     const key = 'figuring-out.collections.v1';
     localStorage.setItem(key, JSON.stringify([{id: 'keep', name: 'Preserved collection', items: [

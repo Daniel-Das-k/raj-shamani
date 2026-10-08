@@ -166,8 +166,14 @@ episode playback, and named collections stored in this browser's local storage.
 In the deployed guest/account modes, collection changes refresh on reopening the
 view, returning to the tab, and periodically while visible. Open tabs in the same
 session receive change notifications. Bookmark state and counts update after a
-successful save or removal; delayed reads cannot replace newer saves. The save
-dialog defaults to the selected collection, and saved clips show both time bounds.
+successful save or removal; delayed reads cannot replace newer saves. The navigation
+count is the number of collection folders, including empty folders. A bookmark saves
+immediately to Watch later; its notification offers **Change collection**. Existing
+bookmarks open the move dialog. Collection folders show clip/episode counts and support
+rename, delete, and undo. Removing an item also offers undo. Collections and Past
+questions have separate tabs. JSON export/import backs up folders, clips, descriptions,
+and exact timestamps; imports are validated, merged, and deduplicated. Guest sessions
+last up to 30 days, so use export to retain a copy or move saves to another browser.
 The snapshot is a browsing catalog; it does not mark any video as searchable.
 Original captions and provider configuration are still required for checked answers.
 
@@ -178,7 +184,9 @@ stay internal. The browser shows the answer or a clear outcome first, followed b
 verified supporting moments and the next-question composer. While generating, the
 next-question form and "Ask another" action are hidden. A plain progress list follows
 the actual server phases and shows elapsed time without an estimated completion time.
-The form returns on success or failure. The homepage omits promotional callouts and
+The form returns on success, failure, or cancellation. Cancel stops waiting and restores
+the question for editing; it does not guarantee that a running provider call stops or
+avoids its charge. A completed answer can still appear in Past questions. The homepage omits promotional callouts and
 uses direct labels for browsing, saving, and asking questions. It also ignores interim
 excerpts from older servers. The final response uses the existing verification
 pipeline and is saved to response history. The JSON `/api/ask` endpoint remains
@@ -197,23 +205,32 @@ active network connection. Catalog and history requests have a separate 15-secon
 browser timeout. Failed history pagination preserves loaded rows and retries the same
 page; the video selector includes all pages of the ready catalog.
 
-The answer view shows a reply followed by related clips. Each clip has two actions:
+The answer view shows a short lead, supporting points with their own source references,
+and a separate checked limitation. Older saved answers remain readable. Clip titles
+describe the excerpt's topic and must pass source review; a rejected title is omitted
+without hiding an otherwise verified summary. Titles reuse the existing summary and
+review calls, with GPT-4.1-mini unchanged. Each clip has two playback actions:
 **Play clip** plays the selected time range on this page; **Full video** opens the
 complete episode on YouTube without clip timing parameters. Numbered answer references
 play their matching clips directly and keep the saved-answer URL unchanged. The player
-appears only after a clip is selected. Original-caption disclosures, duplicate player
+appears inside the selected clip on mobile and desktop. An ended clip shows **Replay clip**.
+Original-caption disclosures, duplicate player
 links, and raw JSON download links in question history are not shown. Original captions
 remain available to the backend for evidence validation and stored response data.
 
 Playback uses YouTube; individual videos may have embedding or availability
 restrictions. **Play clip** passes both original caption
 bounds to the embedded player: the start is rounded down and the end rounded up to
-whole seconds. YouTube stops the excerpt at that end time. The iframe sends the embedding origin so YouTube can
+whole seconds. YouTube stops the excerpt at that end time. The official IFrame API
+updates the playback status and adds an end-time guard after seeking. If that optional
+script cannot load, the native bounded embed remains available. The iframe sends the embedding origin so YouTube can
 identify the site even under the production page's `no-referrer` policy; it does not
 send the page path, question or fragment. Collections are local to the browser,
 while past questions remain in `data/responses.sqlite3`.
 
 UI assets: `knowledge/web/index.html`, `reader.css`, `reader.js`, `catalog.json`.
+Dark mode uses black and charcoal surfaces with off-white text and primary controls.
+Light mode remains available, and the selected theme persists across visits.
 Asset provenance is in `knowledge/web/MEDIA.md`. The previous browser script and
 styles remain in the repository for the historical regression suite.
 
@@ -236,13 +253,17 @@ executable. The browser check uses an isolated browser context, real catalog dat
 and simulated provider responses; it never makes a paid answer request. Screenshots
 are saved under `data/reader-check/`. The browser suite also exercises delayed chunks,
 off-topic/no-match outcomes, clarification, failed checks, provider failures,
-disconnects, malformed responses, split UTF-8, timeouts, and recovery.
+disconnects, malformed responses, split UTF-8, cancellation, timeouts, and recovery.
+It checks core text contrast, touch controls, and overflow at 320, 390, 768, and 1440px
+in both themes. These targeted checks are not a complete accessibility audit.
 It also covers stale history responses, pagination retries, catalogs exceeding 50
 videos, and recovery of valid collection entries alongside malformed entries.
 `npm test` runs the earlier browser-script
 regressions. Live answer accuracy and latency require the original dataset and keys.
 `npm run test:accounts` checks the production account UI using simulated identity and
-storage endpoints, including isolation, persistence, conflicts and failed saves. Install
+storage endpoints, including isolation, persistence, conflicts, failed saves, cross-tab
+updates, rename/delete/undo, backup restoration, duplicate imports, and keyboard tabs.
+Use `GUEST_MODE=1` to exercise the deployed guest interface. Install
 `requirements-production.txt` to run all Python tests including the public server.
 
 ### Run the frontend and backend separately

@@ -46,7 +46,7 @@ const path = require('node:path');
     await page.reload();
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'Manual dark choice overrides light OS and survives reload');
     await page.locator('.editorial-lead').waitFor();
-    await page.locator('.editorial-list [data-save-key]').first().click();
+    await page.evaluate(() => openSave(findVideo('46P1rL0rzPE')));
     await page.screenshot({path: path.join(output, 'dark-save-dialog.png')});
     await page.keyboard.press('Escape');
     for (const width of [320, 390, 768]) {
@@ -76,6 +76,7 @@ const path = require('node:path');
     await page.screenshot({path: path.join(output, 'catalog-desktop.png'), fullPage: true});
 
     await page.locator('#catalog-grid .icon-button').click();
+    await page.getByRole('button', {name: 'Change collection', exact: true}).click();
     await page.locator('#collection-name').fill('Ideas to revisit');
     await page.locator('#confirm-save').click();
     assert.match(await page.locator('#toast').textContent(), /Saved to Ideas to revisit/);
@@ -153,7 +154,8 @@ const path = require('node:path');
     await page.locator('#theme-toggle').click();
     await page.locator('#moments').getByRole('button', {name: 'Play clip 1: 1:40–2:10', exact: true}).click();
     assert.match(await page.locator('#watch-container iframe').getAttribute('src'), /start=100&end=130/);
-    await page.getByRole('button', {name: 'Save this moment', exact: true}).click();
+    await page.getByRole('button', {name: 'Save this clip', exact: true}).click();
+    await page.getByRole('button', {name: 'Change collection', exact: true}).click();
     await page.locator('#collection-name').fill('Focus');
     await page.locator('#confirm-save').click();
     await page.setViewportSize({width: 390, height: 844});
@@ -162,10 +164,11 @@ const path = require('node:path');
     await page.getByRole('button', {name: 'Close supporting video', exact: true}).click();
     assert.equal(await page.locator('#watch-container iframe').count(), 0);
     await page.locator('.main-nav [data-view=saved]').click();
+    await page.locator('#history-tab').click();
     await page.locator('.history-row button').click();
     await page.locator('.answer-prose').waitFor();
     assert.equal(requests, 1, 'History reopening must not generate another answer');
-    await page.locator('#ask-again').click();
+    await page.locator('#question').click();
     assert.equal(await page.locator('#question').evaluate(el => document.activeElement === el), true);
     assert.equal(await page.locator('#answer-view').isVisible(), true, 'Ask another stays with the answer');
     await page.locator('#question').fill('How do I build a business?');
@@ -211,13 +214,14 @@ const path = require('node:path');
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({width, height: 900});
       await overflow();
-      await page.locator('#ask-again').click();
+      await page.locator('#question').click();
       assert.equal(await page.locator('#question').evaluate(el => { const r = el.getBoundingClientRect(); return r.top >= 100 && r.bottom <= innerHeight; }), true, 'Composer focus stays visible below the header');
       await page.evaluate(() => window.scrollTo({top: 0, behavior: 'instant'}));
       await page.screenshot({path: path.join(output, `question-flow-${width}.png`), fullPage: true});
     }
     await require('./reader_stream_browser.cjs')(page, citation, answer);
     await require('./reader_state_browser.cjs')(page);
+    await require('./reader_layout_browser.cjs')(page, output, citation);
     assert.deepEqual(errors, []);
     console.log('Reader checks passed: catalog, playback, collections, light/dark themes, responsive layouts, citations, repeat questions in place, drafts, archive-wide search, retry, busy submission guard, Back/Forward, refresh, and saved-answer reopening without generation.');
   } finally { await browser.close(); }

@@ -23,7 +23,8 @@ class GuideLLM:
     def complete(self, system, data, *, schema):
         self.calls.append((system, data, schema))
         if system == SUMMARY_PROMPT:
-            return {'summary': self.card['summary'], 'support_ids': ['U0'] if self.card['summary'] else []}
+            return {'summary': self.card['summary'], 'clip_title': self.card.get('clip_title', ''),
+                    'support_ids': ['U0'] if self.card['summary'] else []}
         if system == GUIDE_PROMPT:
             return {'selected': [{**{k: v for k, v in self.card.items() if k != 'summary'},
                                   'passage_id': row['id']} for row in data['summaries']]
@@ -75,6 +76,24 @@ class VideoGuideTests(unittest.TestCase):
         self.llm.card.update(match='related', limitation='Background only.')
         self.llm.review['match'] = 'direct'
         self.assertEqual(self.run_guide()['coverage'], 'related')
+
+    def test_clip_title_requires_its_own_source_review(self):
+        self.llm.card['clip_title'] = 'Learning from customer feedback'
+        self.llm.review['title_supported'] = True
+        result = self.run_guide()
+        self.assertEqual(result['recommendations'][0]['clip_title'], self.llm.card['clip_title'])
+        self.assertEqual(len(self.llm.calls), 3, 'Titles reuse the existing summary and review calls')
+        self.llm.review['title_supported'] = False
+        result = self.run_guide()
+        self.assertNotIn('clip_title', result['recommendations'][0])
+        self.assertEqual(result['recommendations'][0]['summary'], self.llm.card['summary'])
+
+    def test_closest_title_is_also_checked(self):
+        self.llm.card['clip_title'] = 'Learning from customer feedback'
+        self.llm.review.update(match='none', title_supported=False)
+        self.assertNotIn('clip_title', self.run_guide()['recommendations'][0])
+        self.llm.review['title_supported'] = True
+        self.assertEqual(self.run_guide()['recommendations'][0]['clip_title'], self.llm.card['clip_title'])
 
     def test_direct_content_is_a_recommendation_not_advice(self):
         self.llm.card.update(match='direct', limitation='')

@@ -79,7 +79,7 @@ const path = require('node:path');
     const events = await page.evaluate(() => window.liveCheckEvents);
     const final = events.find(event => event.type === 'answer');
     assert.ok(final, 'The stream must deliver a final answer');
-    await fs.writeFile(path.join(output, 'response.json'), JSON.stringify({question, source_id: video.id, events}, null, 2));
+    await fs.writeFile(path.join(output, 'response.json'), JSON.stringify({question, events}, null, 2));
     assert.equal(final.http_status, 200, final.response.error);
     assert.deepEqual(events.filter(event => event.type === 'stage').map(event => event.phase), ['search', 'compose']);
     assert.equal(await page.locator('#answer-progress').isVisible(), false);
@@ -87,9 +87,10 @@ const path = require('node:path');
     const answer = final.response;
     assert.ok(answer.points?.length, answer.message || 'Expected a substantive answer');
     assert.ok(answer.record_id, 'The backend must persist the response');
-    const prose = await page.locator('.answer-prose > p').evaluateAll(nodes => nodes.map(node =>
+    const displayedPoints = answer.answer_parts || answer.points;
+    const prose = await page.locator('.answer-prose p:not(.answer-limitation)').evaluateAll(nodes => nodes.map(node =>
       [...node.childNodes].filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.textContent).join('')));
-    assert.deepEqual(prose, answer.points.map(point => point.text), 'Display the exact backend prose');
+    assert.deepEqual(prose, displayedPoints.map(point => point.text), 'Display the exact backend prose');
     assert.ok(await page.locator('.moment').count() > 0, 'Source moments must render');
     assert.ok(await page.locator('.citation-link').count() > 0, 'The answer must link to evidence');
     const record = await page.evaluate(id => api('/api/responses/' + id), answer.record_id);
@@ -108,7 +109,8 @@ const path = require('node:path');
     for (let i = 0; i < clips.length; i++) {
       const item = clips[i], citation = item.citation;
       const card = page.locator('.moment').nth(i);
-      assert.equal(await card.locator('h3').textContent(), citation.title);
+      assert.equal(await card.locator('.clip-source').textContent(), citation.title);
+      if (item.clip_title) assert.equal(await card.locator('h3').textContent(), item.clip_title);
       const description = item.summary || item.why_relevant || citation.summary;
       if (description) assert.equal(await card.locator('.moment-copy').textContent(), description);
       if (item.limitation) assert.equal(await card.locator('.moment-limit').textContent(), item.limitation);
@@ -124,10 +126,10 @@ const path = require('node:path');
       assert.equal(page.url(), answerURL, 'Playing any clip preserves the saved answer URL');
     }
     assert.equal(await page.locator('#watch-details a').count(), 0);
-    for (let p = 0; p < answer.points.length; p++) {
-      const paragraph = page.locator('.answer-prose > p').nth(p);
+    for (let p = 0; p < displayedPoints.length; p++) {
+      const paragraph = page.locator('.answer-prose p:not(.answer-limitation)').nth(p);
       const numbers = await paragraph.locator('.citation-link').allTextContents();
-      const required = [...new Set(answer.points[p].citations.map(citation => clips.findIndex(item =>
+      const required = [...new Set(displayedPoints[p].citations.map(citation => clips.findIndex(item =>
         item.citation.source_id === citation.source_id && item.citation.start === citation.start && item.citation.end === citation.end) + 1))];
       assert.deepEqual(numbers.map(Number), required, 'Each answer paragraph points to the correct clips');
     }
@@ -152,6 +154,7 @@ const path = require('node:path');
     await page.screenshot({path: path.join(output, 'answer-dark.png'), fullPage: true});
     await page.locator('#theme-toggle').click();
     await page.locator('.main-nav [data-view=saved]').click();
+    await page.locator('#history-tab').click();
     await page.locator('.history-row button').filter({hasText: question}).first().click();
     await page.locator('.answer-prose').waitFor();
     assert.equal(requests, 1, 'Reopening history must reuse the saved answer');
@@ -161,7 +164,7 @@ const path = require('node:path');
     assert.equal(await page.locator('.moment').count(), clips.length);
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({result: 'passed', indexed_videos: status.total, question,
-      answer: answer.points.map(point => point.text), record_id: answer.record_id,
+      answer: displayedPoints.map(point => point.text), record_id: answer.record_id,
       stream_events: events.map(event => event.type), requests, output}, null, 2));
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -56,6 +56,22 @@ class AccountTests(unittest.TestCase):
                 self.accounts.save_collections('alice', 0, [{'id': 'a', 'name': 'a', 'items': [item]}])
         self.assertEqual(self.accounts.collections('alice')['revision'], 0)
 
+    def test_saved_clip_preserves_readable_title_summary_and_exact_bounds(self):
+        item = {'id': 'Y566_T-YlNQ', 'title': 'Conversation', 'kind': 'moment',
+                'quote': 'Original caption.', 'start': 100.25, 'end': 106.75,
+                'clip_title': 'Building a consistent routine', 'summary': 'The speaker describes a daily routine.'}
+        collections = [{'id': 'a', 'name': 'Learning', 'items': [item]}]
+        self.accounts.save_collections('alice', 0, collections)
+        self.assertEqual(Accounts(self.path).collections('alice')['items'], collections)
+
+    def test_invalid_saved_clip_descriptions_cannot_overwrite_existing_data(self):
+        for field, value in [('clip_title', 1), ('clip_title', 'x' * 81),
+                             ('summary', None), ('summary', 'x' * 401)]:
+            item = {'id': 'Y566_T-YlNQ', 'title': 'Conversation', 'kind': 'episode', field: value}
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                self.accounts.save_collections('alice', 0, [{'id': 'a', 'name': 'Learning', 'items': [item]}])
+        self.assertEqual(self.accounts.collections('alice')['revision'], 0)
+
     def test_daily_limits_are_atomic_persistent_and_roll_back_on_global_limit(self):
         def reserve(_):
             try:

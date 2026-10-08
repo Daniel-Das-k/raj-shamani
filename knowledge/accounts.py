@@ -128,8 +128,11 @@ class Accounts:
                         not re.fullmatch(r'[A-Za-z0-9_-]{11}', item['id']) or
                         not isinstance(item.get('title'), str) or len(item['title']) > 700 or
                         item.get('kind') not in {'episode', 'moment'} or
-                        set(item) - {'id', 'title', 'kind', 'start', 'end', 'quote'}):
+                        set(item) - {'id', 'title', 'kind', 'start', 'end', 'quote', 'clip_title', 'summary'}):
                     raise ValueError('Invalid saved moment.')
+                for field, maximum in [('clip_title', 80), ('summary', 400)]:
+                    if field in item and (not isinstance(item[field], str) or len(item[field]) > maximum):
+                        raise ValueError('Invalid saved clip description.')
                 if item['kind'] == 'moment':
                     if (not isinstance(item.get('quote'), str) or len(item['quote']) > 30000 or
                             type(item.get('start')) not in (int, float) or type(item.get('end')) not in (int, float) or

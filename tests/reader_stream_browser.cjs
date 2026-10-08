@@ -134,6 +134,26 @@ module.exports = async function checkReaderStream(page, citation, answer) {
   assert.match(await page.locator('#request-status').textContent(), /temporarily unavailable/);
   await page.evaluate(() => { window.readerStreamFixture.httpError = false; });
 
+  await start('A question I want to edit');
+  await send(candidates);
+  await page.locator('#cancel-question').click();
+  await done();
+  await noClips();
+  assert.match(await page.locator('#request-status').textContent(), /Stopped waiting/);
+  assert.equal(await page.locator('#question').inputValue(), 'A question I want to edit');
+  assert.equal(await page.locator('#retry-question').isVisible(), false);
+  assert.equal(await page.locator('#answer-progress').isVisible(), false);
+  assert.equal(await page.locator('#question').isVisible(), true);
+  // A response queued after abort cannot replace the cancelled state.
+  await page.evaluate(answer => {
+    try { window.readerStreamFixture.send({type: 'answer', response: answer}); } catch {}
+  }, answer);
+  await noClips();
+  await start('The edited question');
+  await send({type: 'answer', response: answer});
+  await done();
+  assert.equal(await page.locator('.answer-prose').isVisible(), true);
+
   await start('A stalled request');
   assert.equal(await page.locator('[data-phase=search]').getAttribute('aria-current'), 'step', 'Reset progress for each request');
   await send(candidates);
@@ -156,5 +176,5 @@ module.exports = async function checkReaderStream(page, citation, answer) {
   await done();
   assert.equal(await page.locator('.answer-prose').isVisible(), true);
   assert.equal(await page.locator('#retry-question').isVisible(), false);
-  console.log('Stream checks passed: held candidates, terminal answer, no match, clarification, rejected evidence, provider errors, disconnect, malformed JSON, split UTF-8, HTTP errors, timeout, and recovery.');
+  console.log('Stream checks passed: held candidates, terminal answer, no match, clarification, rejected evidence, provider errors, disconnect, malformed JSON, split UTF-8, HTTP errors, cancellation, timeout, and recovery.');
 };

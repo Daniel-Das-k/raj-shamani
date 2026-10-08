@@ -100,14 +100,15 @@ const path = require('node:path');
     assert.equal(await page.locator('iframe').count(), 0, 'Opening the full video stops the embedded clip');
     await fullVideo.close();
 
-    await page.getByRole('button', {name: 'Save this moment', exact: true}).first().click();
+    await page.getByRole('button', {name: 'Save this clip', exact: true}).first().click();
+    await page.getByRole('button', {name: 'Change collection', exact: true}).click();
     await page.locator('#collection-name').fill('Playback checks');
     await page.locator('#confirm-save').click();
     await page.locator('#save-dialog').waitFor({state: 'hidden'});
     await page.locator('.main-nav [data-view=saved]').click();
     await page.reload();
     await page.locator('#collection-tabs button').filter({hasText: 'Playback checks'}).click();
-    assert.equal(await page.locator('#saved-grid .episode-meta').textContent(), 'Saved clip · 1:40–1:47');
+    assert.equal(await page.locator('#saved-grid .episode-meta').textContent(), 'Saved clip · 1:40–1:47 · 0:07');
     await checkPlayback(() => page.locator('#saved-grid .episode-art').click(), '#video-container', '100', '107');
     assert.equal(await page.locator('#video-external').getAttribute('href'), 'https://www.youtube.com/watch?v=' + first.source_id);
     const [savedFullVideo] = await Promise.all([
@@ -123,7 +124,7 @@ const path = require('node:path');
     await page.locator('#confirm-save').click();
     await page.locator('#save-dialog').waitFor({state: 'hidden'});
     assert.equal(await page.locator('#saved-grid .catalog-card').count(), 2);
-    assert.deepEqual(await page.locator('#saved-grid .episode-meta').allTextContents(), ['Saved clip · 1:40–1:47', 'Saved clip · 1:40–2:10']);
+    assert.deepEqual(await page.locator('#saved-grid .episode-meta').allTextContents(), ['Saved clip · 1:40–1:47 · 0:07', 'Saved clip · 1:40–2:10 · 0:30']);
     await page.locator('.main-nav [data-view=discover]').click();
     await checkPlayback(() => page.locator('.editorial-lead .episode-art').click(),
       '#video-container', null, null, '46P1rL0rzPE');
@@ -150,9 +151,61 @@ const path = require('node:path');
       points: [{text: 'A saved answer without a separate card list.', citations: [first]}]}), first);
     assert.equal(await page.locator('.moment').count(), 1);
     await checkPlayback(() => page.locator('.citation-link').click(), '#watch-container', '100', '107');
+
+    // Drive the official API callbacks deterministically, including a seek past
+    // the end that could otherwise defeat YouTube's embed end parameter.
+    await page.clock.install();
+    await page.evaluate(({first, second}) => {
+      window.playerFixtures = [];
+      window.YT = {Player: function(frame, {events}) {
+        const player = {current: 100, pauses: 0, destroyed: false,
+          getCurrentTime() { return this.current; },
+          pauseVideo() { this.pauses++; events.onStateChange({data: 2}); },
+          destroy() { this.destroyed = true; }, events};
+        window.playerFixtures.push(player);
+        setTimeout(() => { events.onReady({target: player}); events.onStateChange({data: 1}); }, 0);
+        return player;
+      }};
+      renderAnswer({status: 'answered', answer_parts: [
+        {text: 'Start with a consistent routine.', citations: [first]},
+        {text: 'Build in a regular break.', citations: [second]},
+      ], answer_limitation: 'These excerpts do not establish a personal outcome.',
+      recommendations: [{citation: first, clip_title: 'Building a consistent routine', summary: 'A checked summary.'},
+        {citation: second, clip_title: 'Taking regular breaks'}]});
+    }, {first, second});
+    assert.deepEqual(await page.locator('.answer-prose .citation-link').allTextContents(), ['1', '2']);
+    assert.equal(await page.locator('.answer-points li').count(), 1);
+    assert.equal(await page.locator('.answer-limitation').textContent(), 'These excerpts do not establish a personal outcome.');
+    assert.equal(await page.locator('#moment-1 h3').textContent(), 'Building a consistent routine');
+    await page.setViewportSize({width: 390, height: 844});
+    await checkPlayback(playFirst, '#watch-container', '100', '107');
+    await page.clock.fastForward(400);
+    assert.equal(await page.locator('#moment-1 > #watch-panel').count(), 1, 'The player stays inside the selected clip on mobile');
+    await page.evaluate(() => { window.playerFixtures.at(-1).current = 106.9; });
+    await page.clock.fastForward(400);
+    assert.match(await page.locator('#clip-playback-status').textContent(), /Playing/);
+    await page.evaluate(() => { window.playerFixtures.at(-1).current = 107; });
+    await page.clock.fastForward(400);
+    assert.match(await page.locator('#clip-playback-status').textContent(), /Clip finished/);
+    assert.equal(await page.evaluate(() => window.playerFixtures.at(-1).pauses), 1);
+    await checkPlayback(() => page.getByRole('button', {name: 'Replay clip 1: 1:40–1:47', exact: true}).click(), '#watch-container', '100', '107');
+    await page.clock.fastForward(400);
+    assert.equal(await page.evaluate(() => window.playerFixtures[0].destroyed), true);
+    await page.evaluate(() => { const player = window.playerFixtures.at(-1); player.current = 150; player.events.onStateChange({data: 1}); });
+    await page.clock.fastForward(400);
+    assert.match(await page.locator('#clip-playback-status').textContent(), /Clip finished/);
+    await checkPlayback(() => page.locator('#moment-2 .clip-play').click(), '#watch-container', '2144', '2269');
+    await page.clock.fastForward(400);
+    assert.equal(await page.locator('#moment-2 > #watch-panel').count(), 1);
+    await page.evaluate(() => window.playerFixtures.at(-1).events.onAutoplayBlocked());
+    assert.match(await page.locator('#clip-playback-status').textContent(), /Press play/);
+    await page.evaluate(() => window.playerFixtures.at(-1).events.onError());
+    assert.match(await page.locator('#clip-playback-status').textContent(), /Use Full video/);
+    await page.clock.resume();
     await page.evaluate(first => renderAnswer({status: 'insufficient_evidence', message: 'No relevant conversation found.',
       points: [{text: 'Stale answer', citations: [first]}], recommendations: [{citation: first}]}), first);
     assert.equal(await page.locator('.moment, .citation-link, iframe').count(), 0);
+    assert.equal(await page.evaluate(() => window.playerFixtures.at(-1).destroyed), true);
     assert.deepEqual(errors, []);
     console.log('Player checks passed: clip bounds, switching, replay, direct answer references, saved moments, full-video links, and origin-only Referer.');
   } finally {await browser.close();}
