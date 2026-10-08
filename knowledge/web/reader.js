@@ -811,7 +811,7 @@ function updateConnection() {
   $('#question-form').hidden = busy;
   $('#availability-note').hidden = busy;
   $('#ask-button').setAttribute('aria-label', view === 'answer' ? 'Ask another question' : canAnswer() ? 'Ask the archive' : 'Browse matching episodes');
-  $('#availability-note').textContent = canAnswer() ? 'Answers with source clips.' : 'Browse episodes. Answer search is currently unavailable.';
+  $('#availability-note').textContent = canAnswer() ? '' : 'Browse episodes. Answer search is currently unavailable.';
   if (view === 'answer') $('#availability-note').textContent = 'Each question searches independently. Include the names or topics you mean.';
   if (view === 'answer' && !busy && !canAnswer()) $('#availability-note').textContent = 'The answer archive is unavailable. Your draft stays here while the library reconnects.';
   $('#retry-question').disabled = busy;

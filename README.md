@@ -194,8 +194,8 @@ elapsed time never advances the steps or implies an estimated completion time.
 The form returns on success, failure, or cancellation. Cancel stops waiting and restores
 the question for editing; it does not guarantee that a running provider call stops or
 avoids its charge. A completed answer can still appear in Past questions. The homepage
-keeps one question heading and a short source-clip note, with the portrait and topic
-links alongside the search. Repeated explanations, suggested-question buttons, and
+keeps one question heading and search field, with the portrait and topic
+links for browsing. Repeated explanations, suggested-question buttons, and
 duplicate podcast links are omitted. It also ignores interim
 excerpts from older servers. The final response uses the existing verification
 pipeline and is saved to response history. The JSON `/api/ask` endpoint remains
