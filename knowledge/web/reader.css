@@ -136,7 +136,7 @@ button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var
 .answer-heading h1{font-size:28px;line-height:1.4;letter-spacing:-.7px;margin:0 0 12px;max-width:850px}
 .answer-meta{display:flex;flex-wrap:wrap;gap:6px 24px;margin:0 0 28px;color:var(--muted)}
 .answer-scope{font-size:13px;margin:0 0 8px}
-.request-status{font-size:13px;line-height:1.6;margin:0 0 20px}
+.request-status{font-size:13px;line-height:1.6;margin:0 0 20px;color:var(--muted)}
 .answer-meta .answer-scope,.answer-meta .request-status{margin:0}
 .request-status:empty{display:none}
 .request-status.loading::before{display:none}
