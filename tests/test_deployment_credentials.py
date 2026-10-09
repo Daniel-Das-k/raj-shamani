@@ -1,5 +1,6 @@
 import contextlib
 import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -135,6 +136,53 @@ class DeploymentCredentialsTests(unittest.TestCase):
         self.assertIn('ValidateTemplate', str(error.exception))
         self.assertIn('KnowledgeReaderDeploy', str(error.exception))
         self.assertNotIn('private-aws-payload', str(error.exception))
+
+    def test_successful_install_returns_normally_and_records_release(self):
+        for mode in ('google', 'guest', 'cognito'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                output_dir = Path(directory)
+                template_path = output_dir / 'cloudformation.json'
+                template_path.write_text(json.dumps(aws_deploy.template()))
+                checksum = 'a' * 64
+                outputs = {'URL': 'https://reader.example.test', 'SettingsSecretArn': 'test-secret',
+                           'UserPoolId': 'test-pool', 'UserClientId': 'test-client',
+                           'CognitoDomain': 'test-domain', 'StorageBucket': 'test-bucket',
+                           'InstanceId': 'test-instance', 'DataVolumeId': 'test-volume',
+                           'LogGroup': 'test-log'}
+                clients = {name: Mock() for name in ('sts', 'cloudformation', 'secretsmanager', 's3', 'ssm')}
+                session = Mock(region_name='ap-south-1')
+                session.client.side_effect = clients.__getitem__
+                clients['sts'].get_caller_identity.return_value = {'Account': '123456789012'}
+                clients['cloudformation'].describe_stacks.return_value = {'Stacks': [
+                    {'Tags': [{'Key': 'Project', 'Value': 'KnowledgeReader'}]}]}
+                clients['cloudformation'].get_template.return_value = {'TemplateBody': aws_deploy.template()}
+                clients['secretsmanager'].get_secret_value.return_value = {'SecretString': '{}'}
+                clients['ssm'].describe_instance_information.return_value = {
+                    'InstanceInformationList': [{'PingStatus': 'Online'}]}
+                clients['ssm'].send_command.return_value = {'Command': {'CommandId': 'test-install'}}
+                clients['ssm'].get_command_invocation.return_value = {'Status': 'Success'}
+                values = {'PUBLIC_AUTH_MODE': mode, 'OPENAI_API_KEY': 'synthetic-openai',
+                          'SUPERMEMORY_API_KEY': 'synthetic-memory',
+                          'GOOGLE_CLIENT_ID': 'test.apps.googleusercontent.com',
+                          'GOOGLE_CLIENT_SECRET': 'synthetic-google'}
+                stdout = io.StringIO()
+                with patch('sys.argv', ['aws_deploy', '--deploy', '--output', directory]), \
+                        patch.object(aws_deploy, 'dotenv_values', return_value=values), \
+                        patch.dict(aws_deploy.os.environ, {}, clear=True), \
+                        patch.object(aws_deploy, 'aws_session', return_value=session), \
+                        patch.object(aws_deploy, 'package', return_value=(output_dir / 'reader.tar.gz', checksum, template_path)), \
+                        patch.object(aws_deploy, 'wait_stack', return_value=outputs), \
+                        contextlib.redirect_stdout(stdout):
+                    aws_deploy.main()
+                self.assertIn('Deployment installed: ' + outputs['URL'], stdout.getvalue())
+                self.assertIn('browser-session isolation' if mode == 'guest' else 'sign-in and account isolation',
+                              stdout.getvalue())
+                record = json.loads((output_dir / 'aws-resources.json').read_text())
+                self.assertEqual(record['release'], checksum)
+                self.assertEqual(record['ssm_command'], 'test-install')
+                for key in ('OPENAI_API_KEY', 'SUPERMEMORY_API_KEY', 'GOOGLE_CLIENT_SECRET'):
+                    self.assertNotIn(values[key], stdout.getvalue())
+                    self.assertNotIn(values[key], json.dumps(record))
 
 
 if __name__ == '__main__':

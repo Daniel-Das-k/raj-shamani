@@ -349,7 +349,7 @@ def main():
             continue
         if result['Status'] == 'Success':
             print('Deployment installed: ' + outputs['URL'], flush=True)
-            access_check = 'browser-session isolation' if auth_mode == 'guest' else 'sign-in and account isolation'
+            access_check = 'browser-session isolation' if auth_settings['PUBLIC_AUTH_MODE'] == 'guest' else 'sign-in and account isolation'
             print(f'Verify {access_check}, live questions and restart persistence before announcing the launch.')
             return
         if result['Status'] not in {'Pending', 'InProgress', 'Delayed'}:
