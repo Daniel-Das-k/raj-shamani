@@ -34,7 +34,7 @@
       <nav class="main-nav" aria-label="Main navigation">
         <button type="button" data-view="discover" aria-current="page">Discover</button>
         <button type="button" data-view="conversations">Conversations</button>
-        <button type="button" data-view="saved">Collections <span id="collection-count" role="status" aria-live="polite" aria-atomic="true" hidden></span></button>
+        <button type="button" data-view="saved">Library</button>
       </nav>
       <div class="header-actions">
         <button id="account-button" class="text-link" type="button" hidden>Sign out</button>
@@ -73,9 +73,9 @@
       <div id="catalog-topics" class="topic-filters" aria-label="Filter by topic"></div><div class="results-meta"><p id="catalog-count" role="status"></p><button type="button" id="clear-filters" class="text-link" hidden>Clear filters</button></div><div id="catalog-grid" class="catalog-grid"></div><button type="button" id="load-more" class="outline-button load-more" hidden>More conversations <svg class="icon"><use href="#i-plus"/></svg></button>
     </section>
     <section id="saved-view" class="view page-width" hidden>
-      <div class="page-intro saved-intro"><div><h1>Collections</h1><p id="collection-storage-note">Saved in this browser.</p></div><button type="button" id="new-collection" class="outline-button"><svg class="icon"><use href="#i-plus"/></svg>New collection</button></div>
+      <div class="page-intro saved-intro"><div><h1>Your library</h1><p id="collection-storage-note">Saved in this browser.</p></div><button type="button" id="new-collection" class="outline-button"><svg class="icon"><use href="#i-plus"/></svg>New collection</button></div>
       <div class="library-bar">
-        <div class="library-tabs" role="tablist" aria-label="Saved library"><button type="button" id="collections-tab" role="tab" aria-controls="collections-panel" aria-selected="true" data-library-tab="collections">Collections</button><button type="button" id="history-tab" role="tab" aria-controls="history-panel" aria-selected="false" tabindex="-1" data-library-tab="history">Past questions</button></div>
+        <div class="library-tabs" role="tablist" aria-label="Saved library"><button type="button" id="collections-tab" role="tab" aria-controls="collections-panel" aria-selected="true" data-library-tab="collections">Collections <span id="collection-count" role="status" aria-live="polite" aria-atomic="true" hidden></span></button><button type="button" id="history-tab" role="tab" aria-controls="history-panel" aria-selected="false" tabindex="-1" data-library-tab="history">Past questions</button></div>
         <details id="backup-menu" class="action-menu"><summary>Backups <svg class="icon"><use href="#i-chevron"/></svg></summary><div class="action-menu-panel"><button id="export-collections" type="button">Export collections</button><button id="import-collections" type="button">Import collections</button></div></details>
       </div>
       <input id="import-file" type="file" accept=".json,application/json" hidden>

@@ -534,7 +534,12 @@ function episodeCard(video, className = 'catalog-card', collectionId = '') {
   heading.append(el('h3', '', video.clip_title || video.display_title || video.title), saveButton(video, `Save ${video.guest || video.title}`, collectionId));
   copy.append(heading, el('p', 'episode-guest', video.guest ? `${video.guest}${video.role ? ' · ' + video.role : ''}` : `Figuring Out${video.episode ? ' · Episode ' + video.episode : ''}`));
   if (video.kind === 'moment' && video.summary) copy.append(el('p', 'saved-summary', video.summary));
-  if (collectionId) copy.append(button('Remove from collection', 'remove-save', () => removeSaved(collectionId, itemKey(video))));
+  if (collectionId) {
+    const actions = el('div', 'saved-actions');
+    actions.append(button(video.kind === 'moment' ? 'Play clip' : 'Play video', 'text-link saved-play', () => play(video), 'play'),
+      button('Remove from collection', 'remove-save', () => removeSaved(collectionId, itemKey(video))));
+    copy.append(actions);
+  }
   article.append(copy); return article;
 }
 function episodeRow(video) {
@@ -606,7 +611,7 @@ function renderSaved() {
     const empty = el('div', 'empty-content');
     empty.append(el('h3', '', !collectionsReady ? 'Collections unavailable' : collection ? 'No saved items yet' : 'Create your first collection'),
       el('p', '', !collectionsReady ? 'Reload this page to try again.' : collection?.id === 'watch-later' ? 'Bookmarked clips and episodes appear here.' : collection ? 'Move saved clips or episodes into this collection.' : 'Create a collection to organize clips and episodes.'),
-      button('Browse conversations', 'text-link', () => openCatalog(), 'arrow'));
+      button('Browse conversations', 'solid-button', () => openCatalog(), 'arrow'));
     $('#saved-grid').append(empty);
   }
   updateSaveButtons();
@@ -626,7 +631,7 @@ async function loadHistory(offset = 0) {
     });
     if (!result.total) {
       const empty = el('div', 'empty-content');
-      empty.append(el('h3', '', 'No past questions yet'), button(busy ? 'Return to your question' : 'Ask a question', 'text-link', () => {
+      empty.append(el('h3', '', 'No past questions yet'), button(busy ? 'Return to your question' : 'Ask a question', 'solid-button', () => {
         navigate(busy ? 'answer' : 'discover'); if (!busy) $('#question').focus();
       }, 'arrow'));
       $('#response-history').append(empty);
@@ -956,7 +961,7 @@ async function init() {
       $('#account-button').hidden = guestMode; $('#account-button').title = guestMode ? '' : 'Signed in as ' + account.email;
       $('#collection-storage-note').textContent = guestMode
         ? 'Saved for this browser for up to 30 days.'
-        : 'Your saved conversations and moments, available across your devices.';
+        : 'Saved conversations and past questions, available across your devices.';
       $('#history-storage-note').textContent = guestMode ? 'Saved for this browser' : 'Visible only to your account';
       $('#save-dialog .dialog-note').textContent = guestMode ? 'Saved for this browser. No account needed.' : 'Saved to your account.';
       await refreshCollections().catch(() => toast('Your collections could not load. Reload this page before saving.'));
