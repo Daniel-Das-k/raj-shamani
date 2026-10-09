@@ -1,0 +1,10 @@
+data/
+.venv/
+.venv-deploy/
+.deployment/
+.env
+.env.*
+node_modules/
+__pycache__/
+cache/
+outputs/

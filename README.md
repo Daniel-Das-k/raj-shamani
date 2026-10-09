@@ -1,5 +1,14 @@
 # Knowledge Retriever
 
+## Vercel frontend deployment
+
+`vercel.json` publishes the existing static files in `knowledge/web` without a build
+step. Connect this GitHub repository to Vercel to deploy updates automatically.
+The episode catalog, video links, theme, and browser-local collections work in
+this frontend deployment. AI answers, server history, and Google sign-in require
+the Python backend described below; they are not deployed by this configuration.
+Provider credentials must stay on that backend, never in the static frontend.
+
 ## AWS deployment with private Google accounts
 
 The production entry point is `knowledge.public_server:create_app`, served by Uvicorn.
